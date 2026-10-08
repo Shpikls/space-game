@@ -1,0 +1,9 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; }
+.page { max-width: 760px; margin: 0 auto; padding: 24px 16px; line-height: 1.5; }
+.muted { opacity: 0.7; }
+.links li { margin: 6px 0; }
+table { margin-top: 12px; border-collapse: collapse; width: 100%; }
+td { padding: 6px 4px; border-bottom: 1px solid rgba(128, 128, 128, 0.3); }
+td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+button { font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer; }

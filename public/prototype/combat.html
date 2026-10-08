@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Прототип боя</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e6eaf3; --surface:#f6f8fc; --ink:#17203a; --muted:#59648a; --line:#c6cfe2;
+  --accent:#17867d; --accent-ink:#ffffff; --warn:#b4471a; --warn-ink:#ffffff;
+  --heavy:#c97f12; --light:#d23b63;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121a35; --surface:#18223f; --ink:#e5eaf6; --muted:#97a2c2; --line:#2a3760;
+    --accent:#5fd8cb; --accent-ink:#0e1631; --warn:#fb8a4c; --warn-ink:#1b1206;
+    --heavy:#f0a640; --light:#ff6f91;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121a35; --surface:#18223f; --ink:#e5eaf6; --muted:#97a2c2; --line:#2a3760;
+  --accent:#5fd8cb; --accent-ink:#0e1631; --warn:#fb8a4c; --warn-ink:#1b1206;
+  --heavy:#f0a640; --light:#ff6f91;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Exo 2","Segoe UI",system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45}
+.app{display:grid;grid-template-rows:auto auto}
+.stage{position:relative;height:56vh;height:56svh;min-height:300px;background:#0e1631;touch-action:none;overflow:hidden}
+.stage canvas{position:absolute;inset:0;display:block}
+.panel{padding:12px 14px 20px;display:flex;flex-direction:column;gap:14px;max-width:100%}
+.panel h2{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--muted)}
+@media (min-width:900px){
+  html,body{height:100%}
+  body{overflow:hidden}
+  .app{height:100%;grid-template-columns:minmax(0,1fr) 350px;grid-template-rows:1fr}
+  .stage{height:auto;min-height:0}
+  .panel{overflow-y:auto;border-left:1px solid var(--line);background:var(--surface)}
+}
+.btn{font:inherit;font-weight:600;font-size:14px;line-height:1.2;padding:9px 8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center}
+.btn kbd{font:inherit;font-size:11px;font-weight:500;color:var(--muted)}
+.btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.on kbd{color:inherit;opacity:.75}
+.btn.warn{background:var(--warn);color:var(--warn-ink);border-color:var(--warn)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+@media (hover:none){.btn kbd{display:none}}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.distrow{display:grid;grid-template-columns:repeat(3,1fr) 1.5fr;gap:6px;align-items:center;margin-top:6px}
+.distrow span{font-size:13px;color:var(--muted);padding-right:4px}
+.distrow .btn{min-height:38px}
+.mt{margin-top:6px}
+.muted{color:var(--muted)}
+.tcard .thead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tcard .thead b{font-size:16px}
+.mini{display:grid;grid-template-columns:52px 1fr 64px;gap:6px;align-items:center;font-size:12px;margin-top:4px}
+.mini .tr{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.mini .fl{height:100%}
+.fl.armor{background:#7f9cc8}
+.fl.hull{background:var(--ink)}
+.mini span:last-child{text-align:right;color:var(--muted)}
+.hits{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.hits li{display:grid;grid-template-columns:1fr auto;gap:0 8px;padding:7px 9px;border:1px solid var(--line);border-radius:9px}
+.hits .wname{font-weight:600}
+.hits .pct{font-weight:700;font-size:16px}
+.hits .why{grid-column:1 / -1;font-size:12px;color:var(--muted)}
+.log{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:3px}
+.log li{display:grid;grid-template-columns:42px 1fr;gap:6px}
+.log time{color:var(--muted);font-variant-numeric:tabular-nums}
+.overlay{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;background:rgba(8,12,28,.74);padding:calc(env(safe-area-inset-top,0px) + 16px) 12px calc(env(safe-area-inset-bottom,0px) + 16px);z-index:10}
+.overlay.show{display:flex}
+.card{background:var(--surface);color:var(--ink);border-radius:16px;max-width:580px;width:100%;padding:20px 18px 22px;margin:auto 0;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.card h1{margin:0 0 6px;font-size:26px;font-weight:700;letter-spacing:-.01em;line-height:1.15}
+.card h2{margin:18px 0 8px;font-size:16px;font-weight:700}
+.card p{margin:0 0 8px}
+.lead{color:var(--muted)}
+.slot{margin-bottom:10px}
+.slot > span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.btn.opt{align-items:flex-start;text-align:left;padding:9px 10px}
+.btn.opt small{font-weight:400;font-size:12px;color:var(--muted);line-height:1.3}
+.btn.opt.on small{color:inherit;opacity:.85}
+.stats{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;margin-top:4px}
+.stats b{font-weight:700}
+.brief{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.brief li{display:flex;flex-direction:column;gap:2px;padding:9px 11px;border-radius:10px;border:1px solid var(--line)}
+.brief span{font-size:13px;color:var(--muted)}
+.tag::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.tag.heavy::before{background:var(--heavy)}
+.tag.light::before{background:var(--light)}
+.note{font-size:13px;color:var(--warn);margin-top:8px}
+.actions{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.actions .btn{min-height:48px;font-size:15px}
+.foot{margin-top:12px;font-size:13px;color:var(--muted)}
+details{margin-top:14px;font-size:14px}
+details summary{cursor:pointer;font-weight:600}
+details ul{margin:8px 0 0;padding-left:18px;color:var(--muted)}
+.big{font-size:20px;font-weight:700}
+.prev{margin-top:8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px}
+.prev table{width:100%;border-collapse:collapse;margin-top:4px;font-size:13px}
+.prev td{padding:3px 0;color:var(--muted)}
+.prev td:last-child{text-align:right;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.opt.on small:empty{display:none}
+.zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:8px;z-index:2}
+.zb{width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(14,22,49,.72);color:#dfe6f5;font:600 22px/1 "Exo 2",sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.zb:focus-visible{outline:2px solid #6ee7d8;outline-offset:2px}
+@media (max-width:899px){
+  html,body{height:100%}
+  body{overflow:hidden}
+  .app{height:100%;grid-template-rows:minmax(0,1fr) auto}
+  .stage{height:auto;min-height:0}
+  .panel{padding:8px 10px 10px;gap:8px}
+  .panel h2{display:none}
+  .btn{min-height:40px;padding:6px 4px;font-size:13px}
+  .distrow{margin-top:6px}
+  .distrow .btn{min-height:36px}
+  .mini{display:none}
+  .tcard .thead b{font-size:14px}
+  .tcard .thead{font-size:13px}
+  .hits{flex-direction:row;gap:6px;margin-top:4px}
+  .hits li{flex:1;min-width:0;padding:5px 7px}
+  .hits .pct{font-size:14px}
+  .hits .why{font-size:11px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .log{font-size:12px}
+  .log li:nth-child(n+3){display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage"><canvas id="cv" aria-label="Поле боя"></canvas><div class="zoom"><button class="zb" data-z="in" aria-label="Приблизить">+</button><button class="zb" data-z="out" aria-label="Отдалить">−</button></div></div>
+  <aside class="panel">
+    <section>
+      <h2>Приказы</h2>
+      <div class="grid3" id="orders">
+        <button class="btn" data-order="orbit">Орбита<kbd>1</kbd></button>
+        <button class="btn" data-order="keep">Дистанция<kbd>2</kbd></button>
+        <button class="btn" data-order="approach">Сближение<kbd>3</kbd></button>
+        <button class="btn" data-order="away">Отход<kbd>4</kbd></button>
+        <button class="btn" data-order="stop">Стоп<kbd>5</kbd></button>
+      </div>
+      <div class="distrow" id="dists">
+        <button class="btn" data-dist="250" aria-label="Дистанция 250 м">250 м<kbd>Q</kbd></button>
+        <button class="btn" data-dist="450" aria-label="Дистанция 450 м">450 м<kbd>W</kbd></button>
+        <button class="btn" data-dist="700" aria-label="Дистанция 700 м">700 м<kbd>E</kbd></button>
+        <button class="btn" id="retreatBtn">Отступить<kbd>X</kbd></button>
+      </div>
+    </section>
+    <section>
+      <h2>Цель</h2>
+      <div class="tcard" id="target"><p class="muted">Нажми на врага, чтобы выбрать цель.</p></div>
+    </section>
+    <section>
+      <h2>Журнал</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </aside>
+</div>
+<div class="overlay" id="overlay" role="dialog" aria-modal="true"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const overlay = $('#overlay');
+
+/* ---------- storage ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+let bank = Number(store.get('sgp.bank', 0)) || 0;
+let best = Number(store.get('sgp.best', 0)) || 0;
+const fitDefault = { w1:'kinetic', w2:'kinetic', def:'plate', util:'repair', chain:'heavy', tactic:'keep', tdist:'700' };
+let fit = Object.assign({}, fitDefault, store.get('sgp.fit', {}));
+for (const k of Object.keys(fitDefault)) if (typeof fit[k] !== 'string') fit[k] = fitDefault[k];
+
+/* ---------- data ---------- */
+const SIG_BASE = 60;
+const TIME_SCALE = 0.7;
+const WEAP = {
+  kinetic:{ id:'kinetic', name:'Рельса', dmg:26, cycle:2.0, optimal:700, falloff:250, tracking:0.18, color:'#ffe08a' },
+  energy: { id:'energy',  name:'Лазер',  dmg:18, cycle:1.4, optimal:420, falloff:120, tracking:0.9,  color:'#c4a0ff' }
+};
+const MULT = { kinetic:{ armor:1.5, hull:0.8 }, energy:{ armor:0.6, hull:1.5 } };
+const ENEMY = {
+  heavy:{ name:'Тяжёлый', maxSpeed:85, accel:35, sig:120, armor:250, hull:150, ai:'keep', range:550, size:13, color:'#f0a640',
+          weapon:{ id:'kinetic', name:'Рельса', dmg:18, cycle:2.2, optimal:650, falloff:200, tracking:0.3, color:'#ffe08a' } },
+  light:{ name:'Перехватчик', maxSpeed:200, accel:260, sig:40, armor:0, hull:140, ai:'orbit', range:270, size:7, color:'#ff6f91',
+          weapon:{ id:'energy', name:'Лазер', dmg:10, cycle:1.2, optimal:280, falloff:80, tracking:1.2, color:'#ff9db4' } }
+};
+const COL = { space:'#0e1631', dot:'#2b3b6e', player:'#6ee7d8', armor:'#8fa9cf', hull:'#eef2f9', text:'#dfe6f5', muted:'#8e9bc0', miss:'#9aa6c4', hurt:'#ff8a8a', heal:'#7ee0a1', warp:'#9be8ff' };
+
+function pointSpec(n, chain){
+  chain = chain || (run ? run.chain : fit.chain);
+  if (chain === 'heavy') return { heavy: n + 1, light:0, reinf: n >= 3 ? { heavy: 1 + Math.floor((n - 3) / 2), light:0 } : null };
+  if (chain === 'light') return { heavy:0, light: 2 * n + 1, reinf: n >= 3 ? { heavy:0, light:3 } : null };
+  if (n === 1) return { heavy:2, light:0, reinf:null };
+  if (n === 2) return { heavy:0, light:3, reinf:null };
+  if (n === 3) return { heavy:1, light:3, reinf:{ heavy:1, light:0 } };
+  if (n === 4) return { heavy:2, light:3, reinf:{ heavy:0, light:2 } };
+  const k = n - 4;
+  return { heavy:2 + Math.ceil(k/2), light:3 + k, reinf:{ heavy:1, light:1 + Math.floor(k/2) } };
+}
+const reward = n => 800 * n * (run && run.chain === 'mixed' ? 1.5 : 1);
+
+/* ---------- helpers ---------- */
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b - a) * t;
+const dist = (a,b) => Math.hypot(a.x - b.x, a.y - b.y);
+const fmtTime = t => { const s = Math.floor(t); return Math.floor(s/60) + ':' + String(s % 60).padStart(2,'0'); };
+const fmtNum = n => Math.round(n).toLocaleString('ru-RU');
+
+/* ---------- state ---------- */
+let screen = 'fit';
+let run = null;
+let world = null;
+let uid = 0;
+const order = { type:'keep', dist:450 };
+let logs = [], logDirty = true;
+let cssW = 0, cssH = 0, dpr = 1, sc = 0.2, cam = { x:0, y:0 };
+let viewSpan = clamp(Number(store.get('sgp.zoom', 2800)) || 2800, 1200, 5000);
+function setZoom(v){ viewSpan = clamp(v, 1200, 5000); store.set('sgp.zoom', Math.round(viewSpan)); }
+
+function log(text){
+  logs.unshift({ t: world ? world.time : 0, text });
+  if (logs.length > 40) logs.pop();
+  logDirty = true;
+}
+
+function buildPlayer(carry){
+  let speed = 200, accel = 150, armorMax = 0;
+  if (fit.def === 'plate'){ armorMax = 400; speed *= 0.75; accel *= 0.8; }
+  if (fit.util === 'boost'){ speed *= 1.3; accel *= 1.2; }
+  const p = { side:'player', label:'Ты', x:0, y:0, vx:0, vy:0, angle:-Math.PI/2, maxSpeed:speed, accel, sig:60,
+    hullMax:350, hull:350, armorMax, armor:armorMax, size:10, color:COL.player,
+    turrets:[ { w:WEAP[fit.w1] || WEAP.kinetic, cd:0.2 }, { w:WEAP[fit.w2] || WEAP.energy, cd:0.9 } ],
+    hasRepair: fit.util === 'repair', repairOn: fit.util === 'repair' && armorMax > 0, repairT:4, target:null, retreatT:null, dead:false };
+  if (carry){ p.hull = carry.hull; p.armor = Math.min(carry.armor, armorMax); }
+  return p;
+}
+
+function spawn(type, dmin, dmax, warp){
+  const T = ENEMY[type], p = world.player;
+  const a = Math.random() * Math.PI * 2, d = dmin + Math.random() * (dmax - dmin);
+  world.count[type] = (world.count[type] || 0) + 1;
+  const e = { side:'enemy', type, label: T.name + ' ' + world.count[type], x: p.x + Math.cos(a)*d, y: p.y + Math.sin(a)*d,
+    vx:0, vy:0, angle: a + Math.PI, maxSpeed: T.maxSpeed * (0.9 + Math.random()*0.2), accel:T.accel, sig:T.sig,
+    armorMax:T.armor, armor:T.armor, hullMax:T.hull, hull:T.hull, w:T.weapon, cd: 1 + Math.random()*1.5,
+    ai:T.ai, range: T.range + (Math.random()*60 - 30), dir: Math.random() < 0.5 ? 1 : -1, size:T.size, color:T.color, dead:false, id: ++uid };
+  world.enemies.push(e);
+  if (warp) world.booms.push({ x:e.x, y:e.y, t:0, life:0.8, color:COL.warp, size:30 });
+  return e;
+}
+
+function startRun(){
+  run = { point:1, pending:0, carry:null, chain: fit.chain };
+  logs = []; logDirty = true;
+  startPoint();
+}
+
+function startPoint(){
+  const spec = pointSpec(run.point);
+  order.type = fit.tactic; order.dist = +fit.tdist;
+  world = { player: buildPlayer(run.carry), enemies:[], shots:[], floats:[], booms:[], time:0, spec, killed:0, initial:0,
+    reinfDone:false, armorBroken:false, count:{} };
+  for (let i = 0; i < spec.heavy; i++) spawn('heavy', 1700, 1950);
+  for (let i = 0; i < spec.light; i++) spawn('light', 1500, 1750);
+  world.initial = world.enemies.length;
+  world.player.armorBroken = world.player.armor <= 0;
+  log('Точка ' + run.point + ': прибыл, целей ' + world.initial);
+  screen = 'battle';
+  hideOverlay();
+}
+
+function nearestEnemy(){
+  const p = world.player; let b = null, bd = Infinity;
+  for (const e of world.enemies){ if (e.dead) continue; const d = dist(p, e); if (d < bd){ bd = d; b = e; } }
+  return b;
+}
+
+/* ---------- movement ---------- */
+function steer(s, des, dt){
+  let dx = des[0], dy = des[1];
+  const m = Math.hypot(dx, dy);
+  if (m > s.maxSpeed){ dx = dx/m*s.maxSpeed; dy = dy/m*s.maxSpeed; }
+  let ax = dx - s.vx, ay = dy - s.vy;
+  const am = Math.hypot(ax, ay), lim = s.accel * dt;
+  if (am > lim){ ax = ax/am*lim; ay = ay/am*lim; }
+  s.vx += ax; s.vy += ay;
+  s.x += s.vx * dt; s.y += s.vy * dt;
+  if (Math.hypot(s.vx, s.vy) > 4) s.angle = Math.atan2(s.vy, s.vx);
+}
+function orbitDesired(s, t, R, dir){
+  let rx = s.x - t.x, ry = s.y - t.y; const d = Math.hypot(rx, ry) || 1; rx /= d; ry /= d;
+  const tx = -ry * dir, ty = rx * dir;
+  const corr = clamp((d - R) / (R * 0.5), -1, 1);
+  let vx = tx - rx * corr * 1.5, vy = ty - ry * corr * 1.5;
+  const m = Math.hypot(vx, vy) || 1;
+  return [vx/m*s.maxSpeed, vy/m*s.maxSpeed];
+}
+function keepDesired(s, t, R){
+  let rx = s.x - t.x, ry = s.y - t.y; const d = Math.hypot(rx, ry) || 1; rx /= d; ry /= d;
+  const k = clamp((d - R) / 120, -1, 1);
+  return [t.vx - rx*k*s.maxSpeed, t.vy - ry*k*s.maxSpeed];
+}
+function playerDesired(p){
+  const t = p.target, R = order.dist;
+  if (!t) return order.type === 'away' ? [p.vx, p.vy] : [0, 0];
+  const d = dist(p, t) || 1;
+  switch (order.type){
+    case 'orbit': return orbitDesired(p, t, R, 1);
+    case 'keep': return keepDesired(p, t, R);
+    case 'approach': return d > 130 ? [(t.x-p.x)/d*p.maxSpeed, (t.y-p.y)/d*p.maxSpeed] : [t.vx, t.vy];
+    case 'away': return [(p.x-t.x)/d*p.maxSpeed, (p.y-t.y)/d*p.maxSpeed];
+    default: return [0, 0];
+  }
+}
+function enemyDesired(e, p){ return e.ai === 'keep' ? keepDesired(e, p, e.range) : orbitDesired(e, p, e.range, e.dir); }
+
+/* ---------- combat ---------- */
+function hitInfo(s, t, w){
+  const dx = t.x - s.x, dy = t.y - s.y, d = Math.hypot(dx, dy) || 1, rx = dx/d, ry = dy/d;
+  const rvx = t.vx - s.vx, rvy = t.vy - s.vy;
+  const trans = Math.abs(rx*rvy - ry*rvx), ang = trans / d;
+  const tt = (ang / w.tracking) * (SIG_BASE / t.sig);
+  const rt = Math.max(0, d - w.optimal) / w.falloff;
+  const tf = Math.pow(0.5, tt*tt), rf = Math.pow(0.5, rt*rt);
+  const chance = tf * rf, inRange = d <= w.optimal + 2.5 * w.falloff;
+  let reason;
+  if (!inRange) reason = 'вне досягаемости';
+  else if (chance > 0.75) reason = 'хорошие условия';
+  else if (tf < rf) reason = 'цель слишком быстро смещается';
+  else reason = 'цель далеко, дальше оптимальной дальности';
+  return { chance, reason, inRange, d };
+}
+
+function applyDamage(t, raw, type){
+  const m = MULT[type]; let a = 0, h = 0;
+  if (t.armor > 0){
+    const ad = raw * m.armor;
+    if (ad <= t.armor){ t.armor -= ad; a = ad; }
+    else { a = t.armor; t.armor = 0; h = (ad - a) / m.armor * m.hull; t.hull -= h; }
+  } else { h = raw * m.hull; t.hull -= h; }
+  if (t.hull <= 0){ t.hull = 0; t.dead = true; }
+  return { armor:a, hull:h };
+}
+
+function addFloat(ent, text, color){
+  world.floats.push({ x:ent.x, y:ent.y, jx:(Math.random()*16 - 8), text, color, t:0, life:1.1 });
+}
+
+function fire(s, t, w){
+  const h = hitInfo(s, t, w);
+  const hit = Math.random() < h.chance;
+  let ex = t.x, ey = t.y;
+  if (!hit){ const a = Math.random()*Math.PI*2, off = 45 + Math.random()*50; ex += Math.cos(a)*off; ey += Math.sin(a)*off; }
+  world.shots.push({ x1:s.x, y1:s.y, x2:ex, y2:ey, color:w.color, kind:w.id, t:0, life: w.id === 'energy' ? 0.22 : 0.3 });
+  const toPlayer = t.side === 'player';
+  if (hit){
+    const res = applyDamage(t, w.dmg * (0.85 + Math.random()*0.3), w.id);
+    const n = Math.round(res.armor + res.hull);
+    addFloat(t, toPlayer ? '−' + n : String(n), toPlayer ? COL.hurt : (res.hull > 0 ? COL.hull : COL.armor));
+    if (toPlayer && t.armorMax > 0 && t.armor <= 0 && !t.armorBroken){ t.armorBroken = true; log('Броня пробита, урон идёт в корпус'); }
+    if (t.dead){
+      if (toPlayer){ finish('lost'); return; }
+      world.killed++;
+      world.booms.push({ x:t.x, y:t.y, t:0, life:0.7, color:t.color, size: t.size * 3.2 });
+      log(t.label + ' уничтожен');
+    }
+  } else {
+    addFloat(t, 'мимо', COL.miss);
+  }
+}
+
+/* ---------- update ---------- */
+function age(arr, dt){ for (const x of arr) x.t += dt; return arr.filter(x => x.t < x.life); }
+
+function update(dt){
+  const W = world, p = W.player;
+  W.time += dt;
+  if (!p.target || p.target.dead) p.target = nearestEnemy();
+  steer(p, playerDesired(p), dt);
+  for (const e of W.enemies) if (!e.dead) steer(e, enemyDesired(e, p), dt);
+
+  for (const tr of p.turrets){
+    tr.cd -= dt;
+    if (tr.cd <= 0){
+      const t = p.target;
+      if (t && !t.dead && dist(p, t) <= tr.w.optimal + 2.5*tr.w.falloff){ fire(p, t, tr.w); tr.cd = tr.w.cycle; }
+      else tr.cd = 0;
+    }
+  }
+  for (const e of W.enemies){
+    if (e.dead) continue;
+    e.cd -= dt;
+    if (e.cd <= 0){
+      if (dist(e, p) <= e.w.optimal + 2.5*e.w.falloff){ fire(e, p, e.w); e.cd = e.w.cycle * (0.9 + Math.random()*0.2); }
+      else e.cd = 0.3;
+    }
+    if (screen !== 'battle') return;
+  }
+
+  if (p.repairOn){
+    p.repairT -= dt;
+    if (p.repairT <= 0){
+      p.repairT = 4;
+      if (p.armor < p.armorMax){
+        const before = p.armor;
+        p.armor = Math.min(p.armorMax, p.armor + 30);
+        if (p.armor > 0) p.armorBroken = false;
+        addFloat(p, '+' + Math.round(p.armor - before), COL.heal);
+      }
+    }
+  }
+
+  if (p.retreatT != null){
+    p.retreatT -= dt;
+    if (p.retreatT <= 0){ finish('escaped'); return; }
+  }
+
+  W.shots = age(W.shots, dt); W.floats = age(W.floats, dt); W.booms = age(W.booms, dt);
+  W.enemies = W.enemies.filter(e => !e.dead);
+
+  const spec = W.spec;
+  if (spec.reinf && !W.reinfDone && W.killed >= Math.ceil(W.initial / 2)){
+    W.reinfDone = true;
+    const parts = [];
+    for (let i = 0; i < spec.reinf.heavy; i++) spawn('heavy', 1100, 1300, true);
+    for (let i = 0; i < spec.reinf.light; i++) spawn('light', 1000, 1200, true);
+    if (spec.reinf.heavy) parts.push('тяжёлые: ' + spec.reinf.heavy);
+    if (spec.reinf.light) parts.push('перехватчики: ' + spec.reinf.light);
+    log('Подкрепление! ' + parts.join(', '));
+  }
+  if (W.enemies.length === 0 && (!spec.reinf || W.reinfDone)) pointCleared();
+}
+
+function pointCleared(){
+  const p = world.player;
+  run.pending += reward(run.point);
+  run.carry = { hull:p.hull, armor:p.armor };
+  p.repairOn = false; p.retreatT = null;
+  log('Точка ' + run.point + ' зачищена, перехвачен сигнал');
+  screen = 'signal';
+  showSignal();
+}
+function goNext(){ run.point++; startPoint(); }
+
+function finish(kind){
+  const n = run.point;
+  let cleared, gain = 0;
+  if (kind === 'lost'){ cleared = n - 1; }
+  else if (kind === 'escaped'){ cleared = n - 1; gain = run.pending; }
+  else { cleared = n; gain = run.pending; }
+  bank += gain; best = Math.max(best, cleared);
+  store.set('sgp.bank', bank); store.set('sgp.best', best);
+  if (kind === 'lost') log('Корабль потерян');
+  if (kind === 'escaped') log('Прыжок, ушёл из боя');
+  screen = 'result';
+  showResult(kind, { n, cleared, gain, lostSum: run.pending });
+}
+
+/* ---------- render ---------- */
+function resize(){
+  const r = cv.parentElement.getBoundingClientRect();
+  cssW = Math.max(1, r.width); cssH = Math.max(1, r.height); dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+}
+new ResizeObserver(resize).observe(cv.parentElement);
+resize();
+
+const toS = (x, y) => [cssW/2 + (x - cam.x)*sc, cssH/2 + (y - cam.y)*sc];
+
+function drawShip(e, x, y){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(e.angle);
+  ctx.fillStyle = e.color; ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (e.type === 'heavy'){
+    const r = e.size;
+    for (let i = 0; i < 6; i++){ const a = i*Math.PI/3; ctx.lineTo(Math.cos(a)*r*(i === 0 ? 1.3 : 1), Math.sin(a)*r); }
+  } else if (e.type === 'light'){
+    const r = e.size;
+    ctx.moveTo(r*1.5, 0); ctx.lineTo(-r, r*0.85); ctx.lineTo(-r*0.4, 0); ctx.lineTo(-r, -r*0.85);
+  } else {
+    ctx.moveTo(15, 0); ctx.lineTo(-10, 9); ctx.lineTo(-5, 0); ctx.lineTo(-10, -9);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function barPair(x, y, w, e){
+  if (e.armorMax > 0){
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, y, w, 3);
+    ctx.fillStyle = COL.armor; ctx.fillRect(x, y, w * (e.armor / e.armorMax), 3);
+    y += 4;
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, y, w, 3);
+  ctx.fillStyle = COL.hull; ctx.fillRect(x, y, w * (e.hull / e.hullMax), 3);
+}
+
+function hudBar(x, y, w, label, v, max, color){
+  ctx.fillStyle = COL.muted; ctx.font = '500 11px "Exo 2", sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(label, x, y);
+  ctx.textAlign = 'right'; ctx.fillStyle = COL.text;
+  ctx.fillText(max > 0 ? Math.ceil(v) + ' / ' + max : 'нет', x + w, y);
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x, y + 4, w, 5);
+  if (max > 0){ ctx.fillStyle = color; ctx.fillRect(x, y + 4, w * clamp(v / max, 0, 1), 5); }
+}
+
+function render(){
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = COL.space; ctx.fillRect(0, 0, cssW, cssH);
+  sc = Math.min(cssW, cssH) / viewSpan;
+  if (world) { cam.x = world.player.x; cam.y = world.player.y; }
+
+  // grid of dots
+  const step = 150;
+  const x0 = Math.floor((cam.x - cssW/2/sc) / step) * step, x1 = cam.x + cssW/2/sc;
+  const y0 = Math.floor((cam.y - cssH/2/sc) / step) * step, y1 = cam.y + cssH/2/sc;
+  ctx.fillStyle = COL.dot;
+  for (let gx = x0; gx <= x1; gx += step) for (let gy = y0; gy <= y1; gy += step){
+    const [sx, sy] = toS(gx, gy); ctx.fillRect(sx - 1, sy - 1, 2, 2);
+  }
+  if (!world) return;
+  const W = world, p = W.player;
+  const [px, py] = toS(p.x, p.y);
+
+  // weapon range rings
+  const seen = new Set();
+  ctx.setLineDash([4, 6]); ctx.lineWidth = 1;
+  for (const tr of p.turrets){
+    if (seen.has(tr.w.id)) continue; seen.add(tr.w.id);
+    const r = tr.w.optimal * sc;
+    ctx.strokeStyle = tr.w.color; ctx.globalAlpha = 0.28;
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 0.6; ctx.fillStyle = tr.w.color; ctx.font = '500 10px "Exo 2", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(tr.w.name + ' ' + tr.w.optimal + ' м', px, py - r - 4 + (tr.w.id === 'energy' ? 0 : 0));
+  }
+  ctx.globalAlpha = 1; ctx.setLineDash([]);
+
+  // target line
+  if (p.target && !p.target.dead){
+    const [tx, ty] = toS(p.target.x, p.target.y);
+    ctx.strokeStyle = 'rgba(110,231,216,.35)'; ctx.setLineDash([3, 5]);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = COL.player; ctx.lineWidth = 1.5;
+    const rr = p.target.size + 9, rot = W.time * 1.5;
+    for (let i = 0; i < 4; i++){ ctx.beginPath(); ctx.arc(tx, ty, rr, rot + i*Math.PI/2, rot + i*Math.PI/2 + 0.8); ctx.stroke(); }
+    ctx.lineWidth = 1;
+  }
+
+  // shots
+  for (const s of W.shots){
+    const k = s.t / s.life;
+    const [x1s, y1s] = toS(s.x1, s.y1), [x2s, y2s] = toS(s.x2, s.y2);
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.kind === 'energy' ? 2 : 2.2;
+    ctx.beginPath();
+    if (s.kind === 'energy'){ ctx.globalAlpha = 1 - k; ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); }
+    else { const a = Math.max(0, k - 0.3); ctx.moveTo(lerp(x1s, x2s, a), lerp(y1s, y2s, a)); ctx.lineTo(lerp(x1s, x2s, k), lerp(y1s, y2s, k)); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  // booms
+  for (const b of W.booms){
+    const k = b.t / b.life; const [bx, by] = toS(b.x, b.y);
+    ctx.strokeStyle = b.color; ctx.globalAlpha = 1 - k; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(bx, by, 4 + b.size * k, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.lineWidth = 1;
+
+  // enemies
+  const m = 18;
+  for (const e of W.enemies){
+    if (e.dead) continue;
+    const [ex, ey] = toS(e.x, e.y);
+    if (ex < -10 || ey < -10 || ex > cssW + 10 || ey > cssH + 10){
+      const ang = Math.atan2(ey - py, ex - px);
+      const cx = clamp(ex, m, cssW - m), cy = clamp(ey, m, cssH - m);
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang); ctx.fillStyle = e.color;
+      ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, 5); ctx.lineTo(-5, -5); ctx.closePath(); ctx.fill(); ctx.restore();
+      continue;
+    }
+    drawShip(e, ex, ey);
+    barPair(ex - 15, ey - e.size - 12, 30, e);
+  }
+
+  // player
+  drawShip(p, px, py);
+  if (p.retreatT != null){
+    const k = 1 - p.retreatT / 8;
+    ctx.strokeStyle = COL.warp; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(px, py, 22, -Math.PI/2, -Math.PI/2 + Math.PI*2*k); ctx.stroke(); ctx.lineWidth = 1;
+  }
+
+  // floats
+  ctx.font = '600 12px "Exo 2", sans-serif'; ctx.textAlign = 'center';
+  for (const f of W.floats){
+    const k = f.t / f.life; const [fx, fy] = toS(f.x, f.y);
+    ctx.globalAlpha = 1 - k; ctx.fillStyle = f.color;
+    ctx.fillText(f.text, fx + f.jx, fy - 18 - k * 26);
+  }
+  ctx.globalAlpha = 1;
+
+  // HUD
+  ctx.fillStyle = 'rgba(14,22,49,.72)';
+  ctx.fillRect(8, 8, 150, 52);
+  hudBar(16, 24, 134, 'Броня', p.armor, p.armorMax, COL.armor);
+  hudBar(16, 48, 134, 'Корпус', p.hull, p.hullMax, COL.hull);
+
+  ctx.fillStyle = 'rgba(14,22,49,.72)';
+  ctx.fillRect(cssW - 132, 8, 124, 46);
+  ctx.textAlign = 'right'; ctx.fillStyle = COL.text; ctx.font = '700 13px "Exo 2", sans-serif';
+  ctx.fillText('Точка ' + run.point, cssW - 16, 26);
+  ctx.font = '500 11px "Exo 2", sans-serif'; ctx.fillStyle = COL.muted;
+  ctx.fillText('В забеге ' + fmtNum(run.pending) + ' кр', cssW - 16, 44);
+}
+
+/* ---------- panel UI ---------- */
+const orderBtns = [...document.querySelectorAll('[data-order]')];
+const distBtns = [...document.querySelectorAll('[data-dist]')];
+const retreatBtn = $('#retreatBtn'), targetEl = $('#target'), logEl = $('#log');
+
+orderBtns.forEach(b => b.addEventListener('click', () => { order.type = b.dataset.order; updateUI(); }));
+distBtns.forEach(b => b.addEventListener('click', () => { order.dist = +b.dataset.dist; updateUI(); }));
+retreatBtn.addEventListener('click', toggleRetreat);
+
+function toggleRepair(){
+  if (screen !== 'battle') return;
+  const p = world.player;
+  if (!p.hasRepair || p.armorMax === 0) return;
+  p.repairOn = !p.repairOn; p.repairT = 4;
+  updateUI();
+}
+function toggleRetreat(){
+  if (screen !== 'battle') return;
+  const p = world.player;
+  if (p.retreatT == null){ p.retreatT = 8; log('Отступление: прыжок через 8 с'); }
+  else { p.retreatT = null; log('Отступление отменено'); }
+  updateUI();
+}
+
+function targetHTML(){
+  if (!world) return '';
+  const p = world.player, t = p.target;
+  if (!t || t.dead) return '<p class="muted">Целей нет.</p>';
+  const layer = t.armor > 0 ? 'armor' : 'hull';
+  const ws = []; const seen = new Set();
+  for (const tr of p.turrets) if (!seen.has(tr.w.id)){ seen.add(tr.w.id); ws.push(tr.w); }
+  const hits = ws.map(w => {
+    const h = hitInfo(p, t, w), mult = MULT[w.id][layer];
+    const pct = h.inRange ? Math.round(h.chance * 100) + '%' : '—';
+    return '<li><span class="wname">' + w.name + '</span><span class="pct">' + pct + '</span><span class="why">' + h.reason + '; урон ×' + mult + ' по ' + (layer === 'armor' ? 'броне' : 'корпусу') + '</span></li>';
+  }).join('');
+  const mini = (label, v, max, cls) => max > 0
+    ? '<div class="mini"><span>' + label + '</span><div class="tr"><div class="fl ' + cls + '" style="width:' + (100 * v / max).toFixed(1) + '%"></div></div><span>' + Math.ceil(v) + ' / ' + max + '</span></div>'
+    : '';
+  return '<div class="thead"><b style="color:' + (t.type === 'heavy' ? 'var(--heavy)' : 'var(--light)') + '">' + t.label + '</b><span class="muted">' + Math.round(dist(p, t)) + ' м</span></div>'
+    + mini('Броня', t.armor, t.armorMax, 'armor') + mini('Корпус', t.hull, t.hullMax, 'hull')
+    + '<ul class="hits">' + hits + '</ul>';
+}
+
+function updateUI(){
+  orderBtns.forEach(b => b.classList.toggle('on', b.dataset.order === order.type));
+  distBtns.forEach(b => b.classList.toggle('on', +b.dataset.dist === order.dist));
+  if (world && run){
+    const p = world.player;
+    retreatBtn.classList.toggle('warn', p.retreatT != null);
+    retreatBtn.firstChild.textContent = p.retreatT != null ? 'Отмена ' + Math.max(0, p.retreatT).toFixed(1) + ' с' : 'Отступить';
+    if (screen === 'battle') targetEl.innerHTML = targetHTML();
+  }
+  if (logDirty){
+    logEl.innerHTML = logs.slice(0, 8).map(l => '<li><time>' + fmtTime(l.t) + '</time><span>' + l.text + '</span></li>').join('');
+    logDirty = false;
+  }
+}
+
+/* ---------- keyboard & pointer ---------- */
+document.addEventListener('keydown', ev => {
+  if (screen !== 'battle') return;
+  const k = ev.key.toLowerCase();
+  const map = { '1':'orbit', '2':'keep', '3':'approach', '4':'away', '5':'stop' };
+  const dmap = { 'q':250, 'й':250, 'w':450, 'ц':450, 'e':700, 'у':700 };
+  if (map[k]){ order.type = map[k]; updateUI(); }
+  else if (dmap[k]){ order.dist = dmap[k]; updateUI(); }
+  else if (k === 'x' || k === 'ч') toggleRetreat();
+  else if (ev.key === 'Tab'){
+    ev.preventDefault();
+    const p = world.player;
+    const list = world.enemies.filter(e => !e.dead).sort((a, b) => dist(p, a) - dist(p, b));
+    if (list.length){ const i = list.indexOf(p.target); p.target = list[(i + 1) % list.length]; updateUI(); }
+  }
+});
+const pts = new Map(); let pinchD = 0;
+const pinchDist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+cv.addEventListener('pointerdown', ev => {
+  pts.set(ev.pointerId, { x:ev.clientX, y:ev.clientY });
+  if (pts.size === 2){ pinchD = pinchDist(); return; }
+  if (pts.size > 1 || screen !== 'battle') return;
+  const r = cv.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  let b = null, bd = 38;
+  for (const e of world.enemies){ if (e.dead) continue; const [x, y] = toS(e.x, e.y); const d = Math.hypot(x - mx, y - my); if (d < bd){ bd = d; b = e; } }
+  if (b){ world.player.target = b; updateUI(); }
+});
+cv.addEventListener('pointermove', ev => {
+  if (!pts.has(ev.pointerId)) return;
+  pts.set(ev.pointerId, { x:ev.clientX, y:ev.clientY });
+  if (pts.size === 2){ const d = pinchDist(); setZoom(viewSpan * pinchD / d); pinchD = d; }
+});
+const endPt = ev => { pts.delete(ev.pointerId); };
+cv.addEventListener('pointerup', endPt);
+cv.addEventListener('pointercancel', endPt);
+cv.addEventListener('wheel', ev => { ev.preventDefault(); setZoom(viewSpan * (1 + ev.deltaY * 0.0012)); }, { passive:false });
+document.querySelectorAll('.zb').forEach(b => b.addEventListener('click', () => setZoom(viewSpan * (b.dataset.z === 'in' ? 0.8 : 1.25))));
+
+/* ---------- overlay screens ---------- */
+function showOverlay(html){ overlay.innerHTML = '<div class="card">' + html + '</div>'; overlay.classList.add('show'); }
+function hideOverlay(){ overlay.classList.remove('show'); overlay.innerHTML = ''; }
+
+function briefing(n, chain){
+  const s = pointSpec(n, chain), rows = [];
+  if (s.heavy) rows.push('<li><b class="tag heavy">Тяжёлые бронированные: ' + s.heavy + '</b><span>Медленные, держатся на дистанции и бьют кинетикой. Броня 250, корпус 150. Плохо попадают по быстрым целям вблизи.</span></li>');
+  if (s.light) rows.push('<li><b class="tag light">Перехватчики: ' + s.light + '</b><span>Быстрые, без брони, кружат вплотную и жгут лазерами. Корпус 140. Против них нужно оружие с хорошим слежением.</span></li>');
+  return '<ul class="brief">' + rows.join('') + '</ul>' + (s.reinf ? '<p class="note">На этой точке прилетит подкрепление, когда половина врагов будет уничтожена.</p>' : '');
+}
+
+function opt(slot, v, title, desc){
+  const on = fit[slot] === v;
+  return '<button class="btn opt' + (on ? ' on' : '') + '" data-slot="' + slot + '" data-v="' + v + '" aria-pressed="' + on + '"><span>' + title + '</span><small>' + desc + '</small></button>';
+}
+
+const CHAINS = {
+  heavy:{ desc:'Только тяжёлые бронированные. С каждой точкой их больше, с 3-й точки прилетают подкрепления.' },
+  light:{ desc:'Только перехватчики. С каждой точкой их больше, с 3-й точки прилетают подкрепления.' },
+  mixed:{ desc:'Тяжёлые и перехватчики вперемешку, состав меняется от точки к точке. Один фит на всё не подобрать. Награда ×1,5.' }
+};
+const BY = { kinetic:'рельсой', energy:'лазером' };
+function estChance(w, sig, g){
+  if (g.d > w.optimal + 2.5 * w.falloff) return 0;
+  const tt = (g.ang / w.tracking) * (SIG_BASE / sig), rt = Math.max(0, g.d - w.optimal) / w.falloff;
+  return Math.pow(0.5, tt*tt) * Math.pow(0.5, rt*rt);
+}
+function estGeom(type, p){
+  const D = +fit.tdist;
+  if (type === 'light') return { d:270, ang: fit.tactic === 'orbit' ? 1.1 : 0.74 };
+  if (fit.tactic === 'approach') return { d:150, ang:0.05 };
+  if (fit.tactic === 'orbit') return { d:D, ang:p.maxSpeed / D };
+  return { d:D, ang:0.03 };
+}
+function previewHTML(){
+  const p = buildPlayer(null);
+  const types = fit.chain === 'mixed' ? ['heavy', 'light'] : [fit.chain];
+  return types.map(type => {
+    const T = ENEMY[type], g = estGeom(type, p);
+    let dA = 0, dH = 0; const rows = [], seen = new Set();
+    for (const tr of p.turrets){
+      const c = estChance(tr.w, T.sig, g), base = tr.w.dmg / tr.w.cycle * c;
+      dA += base * MULT[tr.w.id].armor; dH += base * MULT[tr.w.id].hull;
+      if (!seen.has(tr.w.id)){ seen.add(tr.w.id); rows.push('<tr><td>Попадание ' + BY[tr.w.id] + '</td><td>' + (c > 0.005 ? Math.round(c * 100) + '%' : 'не достаёт') + '</td></tr>'); }
+    }
+    const ttk = (T.armor ? (dA > 0.01 ? T.armor / dA : Infinity) : 0) + (dH > 0.01 ? T.hull / dH : Infinity);
+    const ec = estChance(T.weapon, p.sig, g);
+    const eDps = T.weapon.dmg / T.weapon.cycle * ec * MULT[T.weapon.id][p.armorMax > 0 ? 'armor' : 'hull'];
+    return '<div class="prev"><b class="tag ' + type + '">' + (type === 'heavy' ? 'Против тяжёлых' : 'Против перехватчиков') + '</b><table>'
+      + '<tr><td>Дистанция боя</td><td>≈ ' + g.d + ' м</td></tr>' + rows.join('')
+      + '<tr><td>Один враг уничтожен за</td><td>' + (isFinite(ttk) ? '≈ ' + Math.round(ttk) + ' с' : 'не уничтожить') + '</td></tr>'
+      + '<tr><td>Урон одного врага по тебе</td><td>≈ ' + eDps.toFixed(1).replace('.', ',') + ' в с</td></tr>'
+      + (p.hasRepair && p.armorMax > 0 ? '<tr><td>Ремонт брони</td><td>+7,5 в с</td></tr>' : '')
+      + '</table></div>';
+  }).join('');
+}
+
+function showFit(){
+  screen = 'fit';
+  const p = buildPlayer(null);
+  const repairNote = fit.util === 'repair' && fit.def !== 'plate' ? '<p class="note">Без броневой плиты ремонту нечего чинить.</p>' : '';
+  showOverlay(
+    '<h1>Прототип боя</h1>'
+    + '<p class="lead">Зачищаешь точку и перехватываешь сигнал к следующей. Награда копится, но достаётся тебе, только если вернёшься на базу. Потеря корабля — потеря всего.</p>'
+    + '<h2>Цепочка</h2><div class="grid3">' + opt('chain', 'heavy', 'Бастион', 'Тяжёлые бронированные') + opt('chain', 'light', 'Осы', 'Перехватчики') + opt('chain', 'mixed', 'Смешанная', 'Все вперемешку') + '</div>'
+    + '<p class="lead mt">' + CHAINS[fit.chain].desc + '</p>'
+    + '<h2>Фит</h2>'
+    + '<div class="slot"><span>Оружие 1</span><div class="grid2">' + opt('w1', 'kinetic', 'Рельса', 'Кинетика. Дальность 700, слежение слабое, сильна по броне') + opt('w1', 'energy', 'Лазер', 'Энергетика. Дальность 420, слежение сильное, силён по корпусу') + '</div></div>'
+    + '<div class="slot"><span>Оружие 2</span><div class="grid2">' + opt('w2', 'kinetic', 'Рельса', 'Кинетика. Дальность 700, слежение слабое, сильна по броне') + opt('w2', 'energy', 'Лазер', 'Энергетика. Дальность 420, слежение сильное, силён по корпусу') + '</div></div>'
+    + '<div class="slot"><span>Защита</span><div class="grid2">' + opt('def', 'plate', 'Броневая плита', '+400 брони, на четверть медленнее') + opt('def', 'none', 'Пусто', 'Нет брони, корабль быстрее') + '</div></div>'
+    + '<div class="slot"><span>Вспомогательный</span><div class="grid2">' + opt('util', 'repair', 'Ремонт брони', '+30 брони каждые 4 с, работает постоянно') + opt('util', 'boost', 'Форсаж', '+30% скорости') + '</div></div>'
+    + '<div class="stats"><span>Броня <b>' + p.armorMax + '</b></span><span>Корпус <b>' + p.hullMax + '</b></span><span>Скорость <b>' + Math.round(p.maxSpeed) + '</b></span></div>'
+    + repairNote
+    + '<h2>План боя</h2>'
+    + '<div class="slot"><span>Стартовый приказ</span><div class="grid3">' + opt('tactic', 'keep', 'Дистанция', 'Держать расстояние') + opt('tactic', 'orbit', 'Орбита', 'Кружить вокруг цели') + opt('tactic', 'approach', 'Сближение', 'Вплотную к цели') + '</div></div>'
+    + (fit.tactic === 'approach' ? '' : '<div class="slot"><span>Дистанция</span><div class="grid3">' + opt('tdist', '250', '250 м', '') + opt('tdist', '450', '450 м', '') + opt('tdist', '700', '700 м', '') + '</div></div>')
+    + '<p class="lead">Корабль начинает каждую точку с этим планом и держится его сам, пока ты не отдашь другой приказ.</p>'
+    + '<h2>Прогноз боя</h2>' + previewHTML()
+    + '<h2>Точка 1</h2>' + briefing(1, fit.chain)
+    + '<div class="actions"><button class="btn on" data-act="start">Начать забег</button></div>'
+    + '<p class="foot">Банк: ' + fmtNum(bank) + ' кр. Лучший забег: ' + best + ' ' + (best % 10 === 1 && best % 100 !== 11 ? 'точка' : (best % 10 >= 2 && best % 10 <= 4 && (best % 100 < 12 || best % 100 > 14)) ? 'точки' : 'точек') + '.</p>'
+    + '<details><summary>Как играть</summary><ul>'
+    + '<li>Нажми на врага, и он станет целью. Оружие стреляет само, когда цель в досягаемости.</li>'
+    + '<li>Приказы движения работают относительно цели: орбита, держать дистанцию, сближение, отход.</li>'
+    + '<li>Карточка цели показывает шанс попадания каждым оружием и почему ты мажешь.</li>'
+    + '<li>Орбита вблизи сбивает прицел тяжёлым, но и твоей рельсе мешает. Держать дистанцию — точнее для обеих сторон.</li>'
+    + '<li>Клавиши: 1–5 приказы, Q W E дистанция, X отступить, Tab следующая цель.</li>'
+    + '</ul></details>'
+  );
+}
+
+function showSignal(){
+  const p = world.player, n = run.point + 1;
+  showOverlay(
+    '<h1>Перехвачен сигнал</h1>'
+    + '<p class="lead">Точка ' + run.point + ' зачищена. Координаты точки ' + n + ' расшифрованы.</p>'
+    + '<div class="stats"><span>Броня <b>' + Math.ceil(p.armor) + ' / ' + p.armorMax + '</b></span><span>Корпус <b>' + Math.ceil(p.hull) + ' / ' + p.hullMax + '</b></span></div>'
+    + '<h2>Точка ' + n + '</h2>' + briefing(n)
+    + '<p class="mt">В забеге <b>' + fmtNum(run.pending) + ' кр</b>. За точку ' + n + ': +' + fmtNum(reward(n)) + ' кр.</p>'
+    + '<div class="actions"><button class="btn on" data-act="next">Лететь к точке ' + n + '</button><button class="btn" data-act="home">Вернуться на базу с ' + fmtNum(run.pending) + ' кр</button></div>'
+  );
+}
+
+function showResult(kind, r){
+  let title, body;
+  if (kind === 'lost'){ title = 'Корабль потерян'; body = 'Погиб на точке ' + r.n + '. Награда забега ' + fmtNum(r.lostSum) + ' кр потеряна.'; }
+  else if (kind === 'escaped'){ title = 'Ушёл из боя'; body = 'Отступил с точки ' + r.n + '. В банк: +' + fmtNum(r.gain) + ' кр.'; }
+  else { title = 'Вернулся на базу'; body = 'Пройдено точек: ' + r.cleared + '. В банк: +' + fmtNum(r.gain) + ' кр.'; }
+  showOverlay(
+    '<h1>' + title + '</h1><p class="lead">' + body + '</p>'
+    + '<p class="big">Банк: ' + fmtNum(bank) + ' кр</p>'
+    + '<div class="actions"><button class="btn on" data-act="again">Новый забег</button></div>'
+  );
+}
+
+overlay.addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.slot){ fit[b.dataset.slot] = b.dataset.v; store.set('sgp.fit', fit); showFit(); return; }
+  switch (b.dataset.act){
+    case 'start': startRun(); break;
+    case 'next': goNext(); break;
+    case 'home': finish('home'); break;
+    case 'again': showFit(); break;
+  }
+});
+
+/* ---------- loop ---------- */
+let last = performance.now(), acc = 0, uiT = 0;
+function frame(now){
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (screen === 'battle'){
+    acc += dt * TIME_SCALE; const step = 1/60;
+    while (acc >= step){ update(step); acc -= step; if (screen !== 'battle'){ acc = 0; break; } }
+  }
+  render();
+  uiT -= dt; if (uiT <= 0){ updateUI(); uiT = 0.15; }
+  requestAnimationFrame(frame);
+}
+showFit();
+updateUI();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
