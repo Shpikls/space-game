@@ -12,6 +12,23 @@ export interface P3 {
   z: number;
 }
 
+/** Где сейчас концы стволов и корабли (null — уже нет). Эффекты едут вместе с ними. */
+export interface Locate {
+  muzzle(ship: string, turret: number): P3 | null;
+  ship(id: string): P3 | null;
+}
+
+export interface ShotFx {
+  shooter: string;
+  turret: number;
+  target: string;
+  /** точки в момент выстрела — если стрелок или цель исчезнут */
+  from: P3;
+  to: P3;
+  /** куда в корпус цели попал снаряд, относительно её центра */
+  hit: P3;
+}
+
 const flashTex = glowTexture('rgba(255,250,230,1)', 'rgba(255,170,80,.5)');
 
 // Вспышки одного размера на экране на любой дистанции (sizeAttenuation: false),
@@ -26,22 +43,29 @@ const TRACER_LENGTH = 0.35; // доля пути до цели
 // Хвост тёмный — при сложении цветов почти невидим, голова яркая
 const TAIL_COLOR = [0.1, 0.06, 0.02], HEAD_COLOR = [1, 0.9, 0.62];
 
-interface Tracer { from: P3; to: P3; t: number; life: number; line: Line2 }
-interface Flash { at: P3; t: number; life: number; size: number; grow: boolean; sprite: THREE.Sprite }
+interface Tracer { shot: ShotFx; t: number; life: number; line: Line2 }
+/** Вспышка привязана к стволу (turret), к кораблю со смещением (offset) или к точке (at). */
+interface Flash { ship?: string; turret?: number; offset?: P3; at: P3; t: number; life: number; size: number; grow: boolean; sprite: THREE.Sprite }
 
-/** Выстрелы как картинка: вспышка у ствола, трассер летит к цели, вспышка попадания. Урон считает симуляция. */
+const add = (a: P3, b: P3): P3 => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
+
+/**
+ * Выстрелы как картинка: вспышка у ствола, трассер летит к цели, вспышка попадания. Урон считает симуляция.
+ * Всё привязано к участникам: стрелок летит дальше, и трассер с вспышкой летят вместе с его стволом.
+ * Иначе за полсекунды полёта корабль уходит вперёд на сотню метров, а след выстрела остаётся сзади.
+ */
 export function createShotFx(scene: THREE.Scene) {
   const tracers: Tracer[] = [], flashes: Flash[] = [];
   const tracerMat = new LineMaterial({ linewidth: TRACER_WIDTH, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
 
-  function flash(at: P3, size: number, life: number, grow: boolean) {
+  function flash(f: Omit<Flash, 't' | 'sprite'>) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false }));
     scene.add(sprite);
-    flashes.push({ at, t: 0, life, size, grow, sprite });
+    flashes.push({ ...f, t: 0, sprite });
   }
 
-  function spawn(from: P3, to: P3) {
-    const d = Math.hypot(to.x - from.x, to.z - from.z);
+  function spawn(shot: ShotFx) {
+    const d = Math.hypot(shot.to.x - shot.from.x, shot.to.z - shot.from.z);
     const geo = new LineGeometry();
     geo.setPositions([0, 0, 0, 0, 0, 0]);
     geo.setColors([...TAIL_COLOR, ...HEAD_COLOR]);
@@ -49,23 +73,26 @@ export function createShotFx(scene: THREE.Scene) {
     line.frustumCulled = false;
     scene.add(line);
     // полёт занимает доли секунды: на 10 км — полсекунды
-    tracers.push({ from, to, t: 0, life: Math.min(0.7, Math.max(0.2, d / 20000)), line });
-    flash(from, MUZZLE_SIZE, 0.15, false);
+    tracers.push({ shot, t: 0, life: Math.min(0.7, Math.max(0.2, d / 20000)), line });
+    flash({ ship: shot.shooter, turret: shot.turret, at: shot.from, life: 0.15, size: MUZZLE_SIZE, grow: false });
   }
 
-  /** Кадр: всё переводится в координаты относительно корабля игрока (origin). */
-  function update(dt: number, origin: Vec2) {
+  /** Кадр: концы берутся там, где сейчас стволы и цели, и переводятся в координаты относительно игрока (origin). */
+  function update(dt: number, origin: Vec2, locate: Locate) {
     tracerMat.resolution.set(window.innerWidth, window.innerHeight);
-    const rel = (a: P3, b: P3, u: number): [number, number, number] =>
-      [a.x + (b.x - a.x) * u - origin.x, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u - origin.z];
     for (let i = tracers.length - 1; i >= 0; i--) {
-      const b = tracers[i]!;
+      const b = tracers[i]!, s = b.shot;
       b.t += dt;
       const k = Math.min(1, b.t / b.life);
-      (b.line.geometry as LineGeometry).setPositions([...rel(b.from, b.to, Math.max(0, k - TRACER_LENGTH)), ...rel(b.from, b.to, k)]);
+      // запоминаем последние известные точки: стрелок или цель могут исчезнуть посреди полёта
+      s.from = locate.muzzle(s.shooter, s.turret) ?? s.from;
+      const target = locate.ship(s.target);
+      if (target) s.to = add(target, s.hit);
+      const at = (u: number) => [s.from.x + (s.to.x - s.from.x) * u - origin.x, s.from.y + (s.to.y - s.from.y) * u, s.from.z + (s.to.z - s.from.z) * u - origin.z];
+      (b.line.geometry as LineGeometry).setPositions([...at(Math.max(0, k - TRACER_LENGTH)), ...at(k)]);
       if (k >= 1) {
         scene.remove(b.line); b.line.geometry.dispose(); tracers.splice(i, 1);
-        flash(b.to, IMPACT_SIZE, 0.35, true);
+        flash({ ship: s.target, offset: s.hit, at: s.to, life: 0.35, size: IMPACT_SIZE, grow: true });
       }
     }
     for (let i = flashes.length - 1; i >= 0; i--) {
@@ -73,6 +100,10 @@ export function createShotFx(scene: THREE.Scene) {
       f.t += dt;
       const k = f.t / f.life;
       if (k >= 1) { scene.remove(f.sprite); f.sprite.material.dispose(); flashes.splice(i, 1); continue; }
+      if (f.ship !== undefined) {
+        const p = f.turret !== undefined ? locate.muzzle(f.ship, f.turret) : locate.ship(f.ship);
+        if (p) f.at = f.offset ? add(p, f.offset) : p;
+      }
       f.sprite.position.set(f.at.x - origin.x, f.at.y, f.at.z - origin.z);
       f.sprite.scale.setScalar(f.size * (f.grow ? 0.5 + k : 1 - 0.6 * k));
       f.sprite.material.opacity = 1 - k;
