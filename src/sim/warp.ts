@@ -5,6 +5,7 @@ import type { Ship, SpaceObject, Vec2, World } from './types';
 export function startWarp(world: World, s: Ship, land: Vec2, tgt: SpaceObject, dist: number): void {
   const dx = land.x - s.pos.x, dz = land.z - s.pos.z, total = Math.hypot(dx, dz);
   s.align = null;
+  s.attack = null; // в варпе турели не стреляют, цель сбрасывается
   world.events.push({ type: 'warpStart', ship: s.id, target: tgt.id });
   if (world.debug.instantWarp) {
     s.pos = { x: land.x, z: land.z }; s.speed = 0; s.order = { type: 'stop' };

@@ -2,7 +2,7 @@ import { GRID_RANGE } from '../sim/constants';
 import type { Entity, PlayerWorld } from '../sim/types';
 import { surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
-import { glyph } from './glyphs';
+import { glyph, isHostile } from './glyphs';
 
 type Project = (rx: number, rz: number) => { x: number; y: number } | null;
 
@@ -31,12 +31,12 @@ export function createLabels(world: PlayerWorld, project: Project, selected: () 
       let l = labels.get(e.id);
       if (!l) {
         l = document.createElement('div'); l.className = 'lbl'; l.dataset.id = e.id;
-        l.innerHTML = glyph(e.type, 16) + `<span class="t">${e.name}<span class="d"></span></span>`;
+        l.innerHTML = glyph(e, 16) + `<span class="t">${e.name}<span class="d"></span></span>`;
         labelsEl.appendChild(l); labels.set(e.id, l);
       }
       l.style.display = '';
       l.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-      l.classList.toggle('named', (celestial && e.type !== 'station') || (e.type === 'station' && d > GRID_RANGE));
+      l.classList.toggle('named', (celestial && e.type !== 'station') || (e.type === 'station' && d > GRID_RANGE) || isHostile(e));
       l.classList.toggle('sel', e.id === sel);
       if (e.id === sel) l.querySelector('.d')!.textContent = fmtDist(d);
     }

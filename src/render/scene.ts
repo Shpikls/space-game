@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { rng } from '../sim/rng';
-import type { Ship, World } from '../sim/types';
+import type { Ship, SimEvent, Vec2, World } from '../sim/types';
 import { buildObjectMesh, buildShip, type ShipMeshData } from './meshes';
+import { glowTexture } from './textures';
 
 // Прототип рисовался на three.js r128. Чтобы картинка не поменялась, возвращаем его правила:
 // цвета без перевода из sRGB в линейное пространство и без такого же перевода на выходе.
@@ -24,6 +25,8 @@ export interface SpaceView {
   yawAt(clientX: number, clientY: number): number | null;
   /** позиция относительно игрока → точка на экране (null — за камерой) */
   project(rx: number, rz: number): { x: number; y: number } | null;
+  /** события симуляции, которые видно в сцене: взрывы */
+  handleEvents(events: SimEvent[]): void;
   /** кадр: расставить меши относительно игрока и нарисовать. Возвращает силу эффекта варпа 0…1. */
   render(dt: number): number;
 }
@@ -48,19 +51,41 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
 
   scene.add(buildStars());
 
-  // Меши объектов мира
-  const meshes = new Map<string, THREE.Object3D>();
-  for (const o of world.objects) {
-    const m = buildObjectMesh(o);
-    if (m) { scene.add(m); meshes.set(o.id, m); }
-  }
+  // Меши объектов и кораблей. Мир меняется по ходу игры (корабль уничтожен, появились обломки),
+  // поэтому каждый кадр сверяемся с ним: новым — меш, исчезнувшим — убрать
+  const meshes = new Map<string, THREE.Object3D | null>();
   const shipMeshes = new Map<string, THREE.Group>();
+  const TINT = { player: 0xa9b8c8, pirate: 0xb0584e } as Record<string, number>;
   function rebuildShipMesh(s: Ship) {
     const old = shipMeshes.get(s.id); if (old) scene.remove(old);
-    const m = buildShip(s.hull, s.faction === 'player' ? 0xa9b8c8 : 0xc4a27e);
+    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e);
     scene.add(m); shipMeshes.set(s.id, m);
   }
-  world.ships.forEach(rebuildShipMesh);
+  function syncMeshes() {
+    for (const o of world.objects) {
+      if (meshes.has(o.id)) continue;
+      const m = buildObjectMesh(o); // у поясов и сигналов меша нет — запоминаем null
+      if (m) scene.add(m);
+      meshes.set(o.id, m);
+    }
+    for (const [id, m] of meshes) if (!world.byId[id]) { if (m) scene.remove(m); meshes.delete(id); }
+    for (const s of world.ships) if (!shipMeshes.has(s.id)) rebuildShipMesh(s);
+    for (const [id, m] of shipMeshes) if (world.byId[id]?.type !== 'ship') { scene.remove(m); shipMeshes.delete(id); }
+  }
+  syncMeshes();
+
+  // Взрывы: вспышка растёт и гаснет на месте уничтоженного корабля
+  const boomTex = glowTexture('rgba(255,244,220,1)', 'rgba(255,140,60,.55)');
+  const booms: { sprite: THREE.Sprite; pos: Vec2; size: number; t: number }[] = [];
+  const BOOM_LIFE = 1.6;
+  function handleEvents(events: SimEvent[]) {
+    for (const e of events) {
+      if (e.type !== 'destroyed') continue;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: boomTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      scene.add(sprite);
+      booms.push({ sprite, pos: e.pos, size: e.size, t: 0 });
+    }
+  }
 
   const tunnel = createTunnel();
   scene.add(tunnel.lines);
@@ -93,6 +118,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
 
   function render(dt: number): number {
     // Всё рисуется относительно корабля игрока (floating origin): так не теряется точность на расстояниях в а. е.
+    syncMeshes();
     const p = player.pos;
     for (const o of world.objects) {
       const m = meshes.get(o.id); if (!m) continue;
@@ -103,6 +129,15 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     }
     const star = world.byId.star!;
     sunLight.position.set(star.pos.x - p.x, 0, star.pos.z - p.z);
+    for (let i = booms.length - 1; i >= 0; i--) {
+      const b = booms[i]!;
+      b.t += dt;
+      const k = b.t / BOOM_LIFE;
+      if (k >= 1) { scene.remove(b.sprite); b.sprite.material.dispose(); booms.splice(i, 1); continue; }
+      b.sprite.position.set(b.pos.x - p.x, 0, b.pos.z - p.z);
+      b.sprite.scale.setScalar(b.size * (4 + 20 * k));
+      b.sprite.material.opacity = 1 - k;
+    }
     for (const s of world.ships) {
       const m = shipMeshes.get(s.id)!;
       const rx = s.pos.x - p.x, rz = s.pos.z - p.z;
@@ -130,6 +165,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     cam,
     camLimits: () => [player.hull.size * 1.6, 4e6],
     rebuildShipMesh,
+    handleEvents,
     yawAt,
     project,
     render,

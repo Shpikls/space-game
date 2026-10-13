@@ -4,10 +4,10 @@ import { DEG } from '../sim/constants';
 import { HULLS, angAccel, isHullKey, linAccel } from '../sim/hulls';
 import { measureWarp, type WarpMeasure } from '../sim/measure';
 import type { HullKey, PlayerWorld } from '../sim/types';
-import { teleport } from '../sim/world';
+import { spawnPirate, teleport } from '../sim/world';
 import { $, fmtSec, nf } from './format';
 
-const TELEPORTS: [string, string][] = [['station', 'Станция'], ['belt', 'Пояс III-1'], ['signal', 'Обломки'], ['p3', 'Ксанта III'], ['star', 'Звезда']];
+const TELEPORTS: [string, string][] = [['station', 'Станция'], ['belt', 'Пояс III-1'], ['signal', 'Обломки'], ['p3', 'Ксанта III'], ['star', 'Звезда'], ['pirate1', 'Пират']];
 
 /** Панель отладки: корпус, скорость времени, мгновенный варп, переброска, характеристики корпуса. */
 export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () => void) {
@@ -49,6 +49,7 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
       view.rebuildShipMesh(player); view.cam.dist = player.hull.size * 7;
     } else if (b.dataset.k) world.timeScale = Number(b.dataset.k);
     else if (b.id === 'instantBtn') world.debug.instantWarp = !world.debug.instantWarp;
+    else if (b.id === 'pirateBtn') { spawnPirate(world); onTeleport(); }
     else if (b.dataset.tp) { teleport(world, player, b.dataset.tp); onTeleport(); }
     else return;
     render();

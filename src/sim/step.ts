@@ -1,3 +1,4 @@
+import { removeDead, stepWeapons } from './combat';
 import { stepShip } from './ship';
 import type { Order, Ship, World } from './types';
 import { canWarpTo } from './world';
@@ -18,6 +19,8 @@ export function step(world: World, dt: number): void {
   const n = Math.max(1, Math.ceil(dt / 0.02)), h = dt / n;
   for (let i = 0; i < n; i++) {
     for (const s of world.ships) stepShip(world, s, h);
+    for (const s of world.ships) stepWeapons(world, s, h);
+    removeDead(world);
     world.time += h;
   }
 }

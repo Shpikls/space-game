@@ -27,6 +27,25 @@ export interface Hull {
   warpAccel: number;
   /** темп экспоненциального торможения в варпе, 1/с */
   warpDecel: number;
+  /** прочность корпуса: сколько урона выдерживает */
+  structure: number;
+}
+
+export interface TurretDef {
+  key: string;
+  name: string;
+  /** урон за выстрел */
+  damage: number;
+  /** секунд между выстрелами */
+  cycle: number;
+  /** дальность стрельбы, м */
+  range: number;
+}
+
+export interface Turret {
+  def: TurretDef;
+  /** сколько секунд до готовности к выстрелу */
+  cooldown: number;
 }
 
 export type ObjectType = 'star' | 'planet' | 'station' | 'belt' | 'signal' | 'asteroid' | 'wreck';
@@ -79,7 +98,7 @@ export interface Align {
   speedFrac: number;
 }
 
-export type Faction = 'player' | 'npc' | 'test';
+export type Faction = 'player' | 'npc' | 'pirate' | 'test';
 
 export interface Ship {
   id: string;
@@ -96,13 +115,22 @@ export interface Ship {
   warp: Warp | null;
   align: Align | null;
   radius: number;
+  /** оставшаяся прочность корпуса */
+  structure: number;
+  turrets: Turret[];
+  /** id корабля, по которому стреляют турели; не зависит от приказа движения */
+  attack: string | null;
+  /** уничтожен; в конце шага убирается из мира */
+  dead: boolean;
 }
 
 export type Entity = SpaceObject | Ship;
 
 export type SimEvent =
   | { type: 'warpStart'; ship: string; target: string }
-  | { type: 'warpEnd'; ship: string; target: string; duration: number };
+  | { type: 'warpEnd'; ship: string; target: string; duration: number }
+  | { type: 'shot'; ship: string; target: string; damage: number }
+  | { type: 'destroyed'; ship: string; name: string; by: string; pos: Vec2; size: number };
 
 export interface World {
   time: number;

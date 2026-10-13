@@ -25,9 +25,13 @@ if (scenario.debug) debug.open(true);
 
 let last = performance.now(), slow = 0;
 function frame(now: number) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  // Отметка первого кадра бывает на секунды раньше запуска скрипта (долгая загрузка) — назад время не идёт,
+  // иначе панели не обновляются, пока счётчик не «отработает» минус
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
   step(world, dt * world.timeScale);
-  hud.handleEvents();
+  const events = world.events.splice(0);
+  hud.handleEvents(events);
+  view.handleEvents(events);
   const wi = view.render(dt);
   $('veil').style.opacity = (wi * 0.9).toFixed(3);
   updateLabels();

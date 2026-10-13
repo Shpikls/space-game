@@ -2,6 +2,7 @@ import { AU, DEG, MIN_WARP } from './constants';
 import { HULLS, isHullKey } from './hulls';
 import { yawTo } from './math';
 import { rng } from './rng';
+import { TURRETS } from './turrets';
 import type { Entity, Faction, HullKey, PlanetLook, PlayerWorld, Ship, SpaceObject, Vec2, World } from './types';
 
 export interface WorldOptions {
@@ -21,7 +22,6 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
   const r = rng(opts.seed || 7);
   const add = (o: SpaceObject) => { world.objects.push(o); world.byId[o.id] = o; return o; };
   const polar = (au: number, deg: number): Vec2 => ({ x: Math.sin(deg * DEG) * au * AU, z: Math.cos(deg * DEG) * au * AU });
-  const off = (p: Vec2, d: number, deg: number): Vec2 => ({ x: p.x + Math.sin(deg * DEG) * d, z: p.z + Math.cos(deg * DEG) * d });
 
   add({ id: 'star', name: 'Ксанта', type: 'star', celestial: true, pos: { x: 0, z: 0 }, radius: 6.5e8, warpIn: 6.5e8 * 5 });
   const planets: [string, string, PlanetLook, number, number, number][] = [
@@ -36,34 +36,49 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
   }
   const p2 = objectById(world, 'p2')!, p3 = objectById(world, 'p3')!;
   const station = add({ id: 'station', name: 'Станция «Причал Ксанты»', type: 'station', celestial: true, local: true,
-    pos: off(p2.pos, 2.6e7, 220), radius: 1600, warpIn: 2600 });
-  const belt = add({ id: 'belt', name: 'Пояс астероидов III-1', type: 'belt', celestial: true, pos: off(p3.pos, 1.7e8, 30), radius: 0, warpIn: 2500 });
+    pos: offset(p2.pos, 2.6e7, 220), radius: 1600, warpIn: 2600 });
+  const belt = add({ id: 'belt', name: 'Пояс астероидов III-1', type: 'belt', celestial: true, pos: offset(p3.pos, 1.7e8, 30), radius: 0, warpIn: 2500 });
   const kinds = ['Железистый', 'Кремниевый', 'Ледяной', 'Углистый'];
   for (let i = 0; i < 14; i++) {
     add({ id: 'ast' + i, name: kinds[i % 4] + ' астероид ' + (i + 1), type: 'asteroid', local: true,
-      pos: off(belt.pos, 5e3 + r() * 24e3, r() * 360), radius: 250 + r() * 1100, seed: i + 11 });
+      pos: offset(belt.pos, 5e3 + r() * 24e3, r() * 360), radius: 250 + r() * 1100, seed: i + 11 });
   }
   const signal = add({ id: 'signal', name: 'Сигнал: обломки конвоя', type: 'signal', celestial: true, pos: polar(18.5, 205), radius: 0, warpIn: 3000 });
   for (let i = 0; i < 6; i++) {
     add({ id: 'wreck' + i, name: 'Обломки транспорта ' + (i + 1), type: 'wreck', local: true,
-      pos: off(signal.pos, 1.5e3 + r() * 7e3, r() * 360), radius: 90 + r() * 120, seed: i + 40 });
+      pos: offset(signal.pos, 1.5e3 + r() * 7e3, r() * 360), radius: 90 + r() * 120, seed: i + 40 });
   }
 
   // Корабли NPC используют те же приказы, что и игрок
-  const npc1 = addShip(world, 'npc1', 'Патруль «Скат»', 'frigate', off(station.pos, 6.6e3, 90), 0, 'npc');
+  const npc1 = addShip(world, 'npc1', 'Патруль «Скат»', 'frigate', offset(station.pos, 6.6e3, 90), 0, 'npc');
   npc1.order = { type: 'orbit', target: 'station', range: 5e3 };
-  const npc2 = addShip(world, 'npc2', 'Грузовик «Ирбис»', 'cruiser', off(station.pos, 12.6e3, 250), 0, 'npc');
+  const npc2 = addShip(world, 'npc2', 'Грузовик «Ирбис»', 'cruiser', offset(station.pos, 12.6e3, 250), 0, 'npc');
   npc2.order = { type: 'orbit', target: 'station', range: 11e3 };
 
+  spawnPirate(world);
+
   const player = addShip(world, 'player', 'Ваш корабль', isHullKey(opts.hull) ? opts.hull : 'cruiser', { x: 0, z: 0 }, 0, 'player');
+  player.turrets = [{ def: TURRETS.light, cooldown: 0 }];
   world.player = player;
   teleport(world, player, opts.at || 'station');
   return world as PlayerWorld;
 }
 
+/** Точка на расстоянии d от p по курсу deg (градусы). */
+export const offset = (p: Vec2, d: number, deg: number): Vec2 => ({ x: p.x + Math.sin(deg * DEG) * d, z: p.z + Math.cos(deg * DEG) * d });
+
+/** Пират «Шакал» неподвижно висит в 30 км от станции. Если он уже есть — чинит его. */
+export function spawnPirate(world: World): Ship {
+  const old = world.byId.pirate1;
+  if (old && old.type === 'ship') { old.structure = old.hull.structure; return old; }
+  const station = objectById(world, 'station')!;
+  return addShip(world, 'pirate1', 'Пират «Шакал»', 'frigate', offset(station.pos, 30e3, 140), 1.2, 'pirate');
+}
+
 export function addShip(world: World, id: string, name: string, hullKey: HullKey, pos: Vec2, yaw: number, faction: Faction): Ship {
   const s: Ship = { id, name, type: 'ship', faction, hull: HULLS[hullKey], pos: { x: pos.x, z: pos.z }, yaw, angVel: 0, speed: 0,
-    order: { type: 'stop' }, warp: null, align: null, radius: 0 };
+    order: { type: 'stop' }, warp: null, align: null, radius: 0,
+    structure: HULLS[hullKey].structure, turrets: [], attack: null, dead: false };
   world.ships.push(s); world.byId[id] = s; return s;
 }
 
@@ -74,20 +89,22 @@ export function objectById(world: World, id: string): SpaceObject | undefined {
 }
 
 /** Точка выхода из варпа: на прямой от цели к кораблю, в warpIn + dist от центра цели. */
-export function landingPoint(tgt: SpaceObject, from: Vec2, dist: number): Vec2 {
+export function landingPoint(tgt: Entity, from: Vec2, dist: number): Vec2 {
   let dx = from.x - tgt.pos.x, dz = from.z - tgt.pos.z;
   let d = Math.hypot(dx, dz);
   if (d < 1) { dx = 0; dz = 1; d = 1; }
-  const k = ((tgt.warpIn ?? 0) + dist) / d;
+  const warpIn = tgt.type === 'ship' ? 0 : tgt.warpIn ?? 0;
+  const k = (warpIn + dist) / d;
   return { x: tgt.pos.x + dx * k, z: tgt.pos.z + dz * k };
 }
 
-/** Мгновенно ставит корабль у объекта (неизвестный id — у станции). */
+/** Мгновенно ставит корабль у объекта или другого корабля (неизвестный id — у станции). */
 export function teleport(world: World, s: Ship, id: string): void {
-  const tgt = objectById(world, id) ?? objectById(world, 'station')!;
-  const extra = tgt.type === 'station' ? 5e3 : 0;
+  const e = world.byId[id];
+  const tgt: Entity = e && e !== s ? e : objectById(world, 'station')!;
+  const extra = tgt.type === 'station' ? 5e3 : tgt.type === 'ship' ? 10e3 : 0;
   const p = landingPoint(tgt, { x: tgt.pos.x + 1e9, z: tgt.pos.z - 3e9 }, extra);
-  s.pos = p; s.warp = null; s.speed = 0; s.angVel = 0; s.order = { type: 'stop' }; s.align = null;
+  s.pos = p; s.warp = null; s.speed = 0; s.angVel = 0; s.order = { type: 'stop' }; s.align = null; s.attack = null;
   s.yaw = yawTo(tgt.pos.x - p.x, tgt.pos.z - p.z) + 1.1;
 }
 
