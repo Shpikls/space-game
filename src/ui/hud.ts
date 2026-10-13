@@ -2,6 +2,7 @@ import { attackStatus, currentHitChance, weaponRange } from '../sim/combat';
 import { DEG } from '../sim/constants';
 import type { PlayerWorld, SimEvent } from '../sim/types';
 import { $, fmtDist, fmtSec, fmtSpeed } from './format';
+import { updateLayers } from './layers';
 
 export interface Hud {
   /** карточка состояния вверху: корпус, скорость, приказ, выравнивание, варп */
@@ -11,13 +12,14 @@ export interface Hud {
   handleEvents(events: SimEvent[]): void;
 }
 
-export function createHud(world: PlayerWorld): Hud {
+export function createHud(world: PlayerWorld, onRespawn: () => void): Hud {
   const player = world.player;
   const statusEl = $('status');
 
   function stateText(): string {
     const s = player, o = s.order;
     const t = 'target' in o ? world.byId[o.target] : undefined;
+    if (s.dead) return 'Корабль уничтожен';
     if (s.warp) {
       const ph = s.warp.phase;
       return ph === 'accel' ? 'Варп: разгон' : ph === 'cruise' ? 'Варп' : 'Варп: торможение';
@@ -39,6 +41,10 @@ export function createHud(world: PlayerWorld): Hud {
     $('state').textContent = stateText();
     statusEl.classList.toggle('aligning', !!s.align && s.order.type === 'warp' && !s.warp);
     statusEl.classList.toggle('warping', !!s.warp);
+    updateLayers($('myLayers'), s);
+    const attackers = world.ships.filter((e) => e.attack === s.id && !e.dead);
+    statusEl.classList.toggle('threatened', attackers.length > 0);
+    if (attackers.length) $('threatLine').textContent = 'Вас атакует: ' + attackers.map((e) => e.name).join(', ');
     const target = s.attack ? world.byId[s.attack] : undefined;
     statusEl.classList.toggle('attacking', !!target);
     if (target) {
@@ -75,9 +81,18 @@ export function createHud(world: PlayerWorld): Hud {
   }
 
 
+  const lost = $('lost');
+  $('respawnBtn').addEventListener('click', () => { lost.hidden = true; onRespawn(); });
+
   function handleEvents(events: SimEvent[]) {
     for (const e of events) {
       if (e.type === 'destroyed' && e.by === 'player') toast(e.name + ' уничтожен');
+      if (e.type === 'destroyed' && e.ship === 'player') {
+        const killer = world.byId[e.by];
+        $('lostText').textContent = (killer ? killer.name + ' уничтожил ваш ' : 'Ваш ') + player.hull.name.toLowerCase() + '. Новый корабль ждёт на станции.';
+        lost.hidden = false;
+        $<HTMLButtonElement>('respawnBtn').focus();
+      }
       if (e.ship !== 'player') continue;
       if (e.type === 'warpStart') toast('Варп к «' + world.byId[e.target]!.name + '»');
       if (e.type === 'warpEnd') toast('Прибыли к «' + world.byId[e.target]!.name + '»' + (e.duration ? ' за ' + fmtSec(e.duration) : ''));

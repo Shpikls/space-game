@@ -5,6 +5,7 @@ import type { Entity, Order, PlayerWorld } from '../sim/types';
 import { canWarpTo, surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
 import { TYPE_NAME, glyph, isHostile } from './glyphs';
+import { updateLayers } from './layers';
 
 export interface Overview {
   selected(): string | null;
@@ -57,10 +58,7 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
     $('selName').innerHTML = `<span>${e.name}</span><small>${fmtDist(d)}</small>`;
     const hp = $('selHp');
     hp.hidden = e.type !== 'ship';
-    if (e.type === 'ship') {
-      $('selHpText').textContent = Math.ceil(e.structure) + ' / ' + e.hull.structure;
-      $('selHpBar').style.width = ((100 * e.structure) / e.hull.structure).toFixed(1) + '%';
-    }
+    if (e.type === 'ship') updateLayers(hp, e);
     const hostile = isHostile(e), attacking = player.attack === e.id;
     const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp + '|' + attacking;
     if (key === actionsKey) return;
