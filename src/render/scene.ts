@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { weaponRange } from '../sim/combat';
 import { rng } from '../sim/rng';
 import type { Ship, SimEvent, Vec2, World } from '../sim/types';
@@ -58,9 +59,11 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   const meshes = new Map<string, THREE.Object3D | null>();
   const shipMeshes = new Map<string, THREE.Group>();
   const TINT = { player: 0xa9b8c8, pirate: 0xb0584e } as Record<string, number>;
+  // окружение, которое отражают корпуса кораблей (только они — планеты и станция светятся как раньше)
+  const shipEnv = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
   function rebuildShipMesh(s: Ship) {
     const old = shipMeshes.get(s.id); if (old) scene.remove(old);
-    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e, s.turrets.length);
+    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e, s.turrets.length, shipEnv);
     scene.add(m); shipMeshes.set(s.id, m);
   }
   function syncMeshes() {

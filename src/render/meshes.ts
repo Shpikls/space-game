@@ -69,11 +69,16 @@ function buildTurret(L: number, mat: THREE.Material): { turret: THREE.Group; muz
   return { turret, muzzle };
 }
 
+// Корпус металлический: металл почти не рассеивает свет, а отражает окружение. В пустом космосе отражать нечего,
+// и сторона без солнца выходила чёрной. Мягкое отражение «студии» (envMap) делает её читаемой
+const SHIP_ENV_INTENSITY = 0.4;
+
 /** Корабль длиной L = h.size вдоль оси Z, с факелом двигателя и башнями турелей сверху. */
-export function buildShip(h: Hull, tint: number, turretCount = 0): THREE.Group {
+export function buildShip(h: Hull, tint: number, turretCount = 0, env: THREE.Texture | null = null): THREE.Group {
   const g = new THREE.Group(), L = h.size;
-  const mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0.55, roughness: 0.38 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2b323c, metalness: 0.5, roughness: 0.6 });
+  const lit = { envMap: env, envMapIntensity: SHIP_ENV_INTENSITY };
+  const mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0.55, roughness: 0.38, ...lit });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2b323c, metalness: 0.5, roughness: 0.6, ...lit });
   const body = new THREE.Mesh(new THREE.CylinderGeometry(L * 0.07, L * 0.13, L * 0.72, 10), mat);
   body.rotation.x = Math.PI / 2; g.add(body);
   const nose = new THREE.Mesh(new THREE.ConeGeometry(L * 0.07, L * 0.26, 10), mat);
@@ -85,7 +90,7 @@ export function buildShip(h: Hull, tint: number, turretCount = 0): THREE.Group {
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: engineTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   glow.position.z = -L * 0.4; glow.scale.setScalar(L * 0.45); g.add(glow);
   const turrets: THREE.Object3D[] = [], muzzles: THREE.Object3D[] = [];
-  const turretMat = new THREE.MeshStandardMaterial({ color: 0x5b6573, metalness: 0.6, roughness: 0.4 });
+  const turretMat = new THREE.MeshStandardMaterial({ color: 0x5b6573, metalness: 0.6, roughness: 0.4, ...lit });
   for (let i = 0; i < turretCount; i++) {
     const { turret, muzzle } = buildTurret(L, turretMat);
     turret.position.set(0, L * 0.095, L * 0.1 - i * L * 0.16);
