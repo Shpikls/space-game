@@ -2,6 +2,8 @@
 
 Одиночная космическая песочница в браузере: полёт по приказам, варп по звёздной системе «Ксанта». TypeScript, three.js, Vite.
 
+Играть: https://shpikls.github.io/space-game/ (отладка — https://shpikls.github.io/space-game/?debug=1)
+
 ```bash
 npm install
 npm run dev     # http://localhost:5173
