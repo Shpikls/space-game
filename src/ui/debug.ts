@@ -5,6 +5,7 @@ import { HULLS, angAccel, isHullKey, linAccel } from '../sim/hulls';
 import { measureWarp, type WarpMeasure } from '../sim/measure';
 import { TURRETS, isTurretKey, mountTurret, slewRate } from '../sim/turrets';
 import type { HullKey, PlayerWorld } from '../sim/types';
+import { damageShip, repairShip } from '../sim/damage';
 import { spawnPirate, teleport } from '../sim/world';
 import { $, fmtSec, nf } from './format';
 
@@ -36,7 +37,9 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
       ['Разгон', Math.round(linAccel(h)) + ' м/с²'],
       ['Макс. скорость', h.maxSpeed + ' м/с'],
       ['Скорость варпа', h.warpSpeed + ' а. е./с'],
-      ['Прочность', nf.format(h.structure)],
+      ['Щит', nf.format(h.shield) + ', восстановление ' + h.shieldRecharge + ' с'],
+      ['Броня', nf.format(h.armor)],
+      ['Корпус', nf.format(h.structure)],
       ['Сигнатура', h.signature + ' м'],
       ['Выравнивание, поворот 90°', m.a90.align.toFixed(1).replace('.', ',') + ' с'],
       ['Выравнивание, поворот 180°', m.a180.align.toFixed(1).replace('.', ',') + ' с'],
@@ -66,6 +69,8 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
     } else if (b.dataset.k) world.timeScale = Number(b.dataset.k);
     else if (b.id === 'instantBtn') world.debug.instantWarp = !world.debug.instantWarp;
     else if (b.id === 'pirateBtn') { spawnPirate(world); onTeleport(); }
+    else if (b.id === 'hurtBtn') damageShip(world, player, 500, 'debug');
+    else if (b.id === 'repairBtn') repairShip(player);
     else if (b.dataset.tp) { teleport(world, player, b.dataset.tp); onTeleport(); }
     else return;
     render();

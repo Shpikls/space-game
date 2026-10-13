@@ -1,4 +1,5 @@
 import { AU, DEG, MIN_WARP } from './constants';
+import { repairShip } from './damage';
 import { HULLS, isHullKey } from './hulls';
 import { yawTo } from './math';
 import { rng } from './rng';
@@ -71,18 +72,30 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
 /** Точка на расстоянии d от p по курсу deg (градусы). */
 export const offset = (p: Vec2, d: number, deg: number): Vec2 => ({ x: p.x + Math.sin(deg * DEG) * d, z: p.z + Math.cos(deg * DEG) * d });
 
-/** Пират «Шакал» неподвижно висит в 30 км от станции. Если он уже есть — чинит его. */
+/** Пират «Шакал» неподвижно висит в 30 км от станции, с лёгкой турелью. Если он уже есть — чинит его. */
 export function spawnPirate(world: World): Ship {
   const old = world.byId.pirate1;
-  if (old && old.type === 'ship') { old.structure = old.hull.structure; return old; }
+  if (old && old.type === 'ship') { repairShip(old); return old; }
   const station = objectById(world, 'station')!;
-  return addShip(world, 'pirate1', 'Пират «Шакал»', 'frigate', offset(station.pos, 30e3, 140), 1.2, 'pirate');
+  const p = addShip(world, 'pirate1', 'Пират «Шакал»', 'frigate', offset(station.pos, 30e3, 140), 1.2, 'pirate');
+  p.turrets = [mountTurret(TURRETS.light)];
+  return p;
+}
+
+/** Новый вылет после гибели: корабль целиком починен и стоит у станции. */
+export function respawnPlayer(world: World): void {
+  const s = world.player;
+  if (!s) return;
+  s.dead = false;
+  repairShip(s);
+  for (const tr of s.turrets) { tr.cooldown = 0; tr.aim = 0; }
+  teleport(world, s, 'station');
 }
 
 export function addShip(world: World, id: string, name: string, hullKey: HullKey, pos: Vec2, yaw: number, faction: Faction): Ship {
   const s: Ship = { id, name, type: 'ship', faction, hull: HULLS[hullKey], pos: { x: pos.x, z: pos.z }, yaw, angVel: 0, speed: 0,
     order: { type: 'stop' }, warp: null, align: null, radius: 0,
-    structure: HULLS[hullKey].structure, turrets: [], attack: null, dead: false };
+    shield: HULLS[hullKey].shield, armor: HULLS[hullKey].armor, structure: HULLS[hullKey].structure, turrets: [], attack: null, dead: false };
   world.ships.push(s); world.byId[id] = s; return s;
 }
 

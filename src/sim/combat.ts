@@ -1,6 +1,7 @@
+import { damageShip } from './damage';
 import { clamp, wrap, yawTo } from './math';
 import { AIM_TOLERANCE, slewRate } from './turrets';
-import type { Ship, SpaceObject, Turret, World } from './types';
+import type { Ship, Turret, World } from './types';
 import { surfaceDistance } from './world';
 
 /** Дальность самой дальнобойной турели корабля (0 — турелей нет). */
@@ -11,7 +12,7 @@ export const weaponRange = (s: Ship) => Math.max(0, ...s.turrets.map((t) => t.de
  * куда лететь и кого бить — два независимых решения.
  */
 export function setAttack(world: World, s: Ship, targetId: string | null): boolean {
-  if (s.warp) return false;
+  if (s.warp || s.dead) return false;
   if (targetId === null) { s.attack = null; return true; }
   const t = world.byId[targetId];
   if (!t || t.type !== 'ship' || t === s || t.dead) return false;
@@ -84,6 +85,7 @@ export function currentHitChance(world: World, s: Ship): number | null {
  * и стреляет, когда навелась, перезарядилась и цель в пределах дальности.
  */
 export function stepWeapons(world: World, s: Ship, dt: number): void {
+  if (s.dead) return;
   for (const tr of s.turrets) tr.cooldown = Math.max(0, tr.cooldown - dt);
   const t = s.warp ? null : attackTarget(world, s);
   if (s.attack && !t && !s.warp) s.attack = null;
@@ -95,28 +97,17 @@ export function stepWeapons(world: World, s: Ship, dt: number): void {
     if (tr.cooldown > 0 || d > tr.def.range || Math.abs(wrap(want - tr.aim)) > AIM_TOLERANCE) continue;
     tr.cooldown = tr.def.cycle;
     const chance = hitChance(s, tr, t), hit = world.rng() < chance;
-    if (hit) t.structure = Math.max(0, t.structure - tr.def.damage);
     world.events.push({ type: 'shot', ship: s.id, target: t.id, turret: i, hit, chance, damage: hit ? tr.def.damage : 0, from: { ...s.pos }, to: { ...t.pos } });
-    if (t.structure <= 0) {
-      t.dead = true;
-      world.events.push({ type: 'destroyed', ship: t.id, name: t.name, by: s.id, pos: { ...t.pos }, size: t.hull.size });
-      break;
-    }
+    if (hit) damageShip(world, t, tr.def.damage, s.id);
+    if (t.dead) break;
   }
 }
 
-/** Убирает уничтоженные корабли; на их месте остаются обломки. */
+/** Убирает уничтоженные чужие корабли (обломки уже на их месте). Корабль игрока остаётся до нового вылета. */
 export function removeDead(world: World): void {
-  if (!world.ships.some((s) => s.dead)) return;
-  for (const d of world.ships) {
-    if (!d.dead) continue;
-    delete world.byId[d.id];
-    const wreck: SpaceObject = {
-      id: `wreck-${d.id}-${Math.round(world.time * 1000)}`, name: 'Обломки: ' + d.name, type: 'wreck', local: true,
-      pos: { ...d.pos }, radius: d.hull.size * 0.6, seed: 77,
-    };
-    world.objects.push(wreck); world.byId[wreck.id] = wreck;
-  }
-  world.ships = world.ships.filter((s) => !s.dead);
+  const gone = world.ships.filter((s) => s.dead && s !== world.player);
+  if (gone.length === 0) return;
+  for (const d of gone) delete world.byId[d.id];
+  world.ships = world.ships.filter((s) => !gone.includes(s));
   for (const s of world.ships) if (s.attack && !world.byId[s.attack]) s.attack = null;
 }

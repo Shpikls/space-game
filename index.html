@@ -18,6 +18,8 @@
     <div class="row"><span id="hullName"></span><span id="speed"></span></div>
     <div id="state">Стоп</div>
     <div id="attackLine"></div>
+    <div id="threatLine"></div>
+    <div class="layers" id="myLayers"></div>
     <div id="bigSpeed"></div>
     <div id="alignBox">
       <div class="row"><span>Курс</span><span id="alignAngle"></span></div>
@@ -41,7 +43,7 @@
   <div id="actions">
     <div id="selName">Ничего не выбрано</div>
     <div id="selHint">Выберите объект в обзоре или на экране.</div>
-    <div id="selHp" class="hp" hidden><div class="row"><span>Прочность</span><span id="selHpText"></span></div><div class="meter"><i id="selHpBar"></i></div></div>
+    <div id="selHp" class="layers" hidden></div>
     <div class="chips" id="chips"></div>
   </div>
   <div class="tabs">
@@ -57,6 +59,14 @@
   <button class="btn" id="overviewBtn" aria-expanded="false">≡ Обзор</button>
 </div>
 
+<div id="lost" class="overlay" role="dialog" aria-modal="true" aria-labelledby="lostTitle" hidden>
+  <div class="card">
+    <h2 id="lostTitle">Корабль уничтожен</h2>
+    <p id="lostText"></p>
+    <button class="btn primary" id="respawnBtn">Новый корабль на станции</button>
+  </div>
+</div>
+
 <aside id="debug" aria-label="Отладка">
   <h2>Отладка <button class="btn" id="debugClose">Закрыть</button></h2>
   <h3>Корпус</h3>
@@ -68,7 +78,7 @@
   <h3>Варп</h3>
   <div class="seg"><button class="btn" id="instantBtn">Мгновенный варп</button></div>
   <h3>Бой</h3>
-  <div class="seg"><button class="btn" id="pirateBtn">Вернуть пирата</button></div>
+  <div class="seg"><button class="btn" id="pirateBtn">Вернуть пирата</button><button class="btn" id="hurtBtn">Получить 500 урона</button><button class="btn" id="repairBtn">Починить</button></div>
   <h3>Перенестись</h3>
   <div class="seg" id="tpSeg"></div>
   <h3>Характеристики корабля</h3>

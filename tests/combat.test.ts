@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AIM_TOLERANCE, DEG, HULLS, TURRETS, angularVelocity, slewRate, attackStatus, createWorld, hitChance, issueOrder, setAttack, spawnPirate, step, surfaceDistance,
+  AIM_TOLERANCE, DEG, HULLS, TURRETS, angularVelocity, maxHp, slewRate, totalHp, attackStatus, createWorld, hitChance, issueOrder, setAttack, spawnPirate, step, surfaceDistance,
   teleport, wrap, yawTo, type PlayerWorld, type Ship, type SimEvent,
 } from '../src/sim';
 
 const pirate = (w: PlayerWorld) => w.byId.pirate1 as Ship | undefined;
+/** Пират без оружия — для тестов про пушки игрока, чтобы ответный огонь не мешал. */
+const calm = (w: PlayerWorld) => { pirate(w)!.turrets = []; return w; };
+const myShot = (e: SimEvent) => e.type === 'shot' && e.ship === 'player';
 
 /** На какой угол башне игрока надо повернуться к пирату (корабль стоит, нос не двигается). */
 const aimNeeded = (w: PlayerWorld) => {
@@ -47,18 +50,22 @@ describe('первая цель', () => {
     setAttack(w, w.player, 'pirate1');
     const events = runUntil(w, () => false, 30);
     expect(events.filter((e) => e.type === 'shot')).toHaveLength(0);
-    expect(pirate(w)!.structure).toBe(HULLS.frigate.structure);
+    expect(totalHp(pirate(w)!)).toBe(maxHp(pirate(w)!));
   });
 
   it('в пределах дальности уничтожает пирата за расчётное время', () => {
-    const w = createWorld({ at: 'pirate1' });
+    const w = calm(createWorld({ at: 'pirate1' }));
     expect(surfaceDistance(w.player, pirate(w)!)).toBeCloseTo(10e3, -1);
     setAttack(w, w.player, 'pirate1');
     const start = w.time, aimTime = (aimNeeded(w) - AIM_TOLERANCE) / slewRate(TURRETS.light);
     const events = runUntil(w, () => !pirate(w));
-    // башня наводится, затем 10 выстрелов по 100 раз в 2 с = 1000 прочности
-    const shots = Math.ceil(HULLS.frigate.structure / TURRETS.light.damage);
-    expect(events.filter((e) => e.type === 'shot')).toHaveLength(shots);
+    // башня наводится, затем выстрелы по 100 раз в 2 с. Между выстрелами щит пирата нарастает на 10 в секунду —
+    // и после того, как его пробили, тоже, — так что каждый следующий выстрел снимает на 20 меньше
+    const f = HULLS.frigate, regenPerCycle = (f.shield / f.shieldRecharge) * TURRETS.light.cycle;
+    let shots = 0, hp = f.shield + f.armor + f.structure;
+    while (hp > 0) { if (shots > 0) hp += regenPerCycle; hp -= TURRETS.light.damage; shots++; }
+    expect(shots).toBe(13);
+    expect(events.filter(myShot)).toHaveLength(shots);
     expect(Math.abs(w.time - start - (aimTime + (shots - 1) * TURRETS.light.cycle))).toBeLessThan(0.15);
     const boom = events.find((e) => e.type === 'destroyed');
     expect(boom).toMatchObject({ ship: 'pirate1', by: 'player', name: 'Пират «Шакал»' });
@@ -93,7 +100,7 @@ describe('первая цель', () => {
     setAttack(w, w.player, 'pirate1');
     runUntil(w, () => !pirate(w));
     const again = spawnPirate(w);
-    expect(again.structure).toBe(HULLS.frigate.structure);
+    expect(totalHp(again)).toBe(maxHp(again));
     teleport(w, w.player, 'pirate1');
     expect(surfaceDistance(w.player, again)).toBeCloseTo(10e3, -1);
   });
@@ -105,7 +112,7 @@ describe('турели', () => {
     const start = w.time;
     for (let t = 0; t < 60; t += 0.02) {
       step(w, 0.02);
-      if (w.events.splice(0).some((e) => e.type === 'shot')) return w.time - start;
+      if (w.events.splice(0).some(myShot)) return w.time - start;
     }
     return Infinity;
   }
@@ -121,7 +128,7 @@ describe('турели', () => {
   });
 
   it('чем медленнее наведение, тем позже первый выстрел', () => {
-    const fast = createWorld({ at: 'pirate1' }), slow = createWorld({ at: 'pirate1' });
+    const fast = calm(createWorld({ at: 'pirate1' })), slow = calm(createWorld({ at: 'pirate1' }));
     slow.player.turrets[0]!.def = { ...TURRETS.light, tracking: 10 * DEG };
     setAttack(fast, fast.player, 'pirate1'); setAttack(slow, slow.player, 'pirate1');
     const tf = firstShot(fast), ts = firstShot(slow);
@@ -129,13 +136,13 @@ describe('турели', () => {
   });
 
   it('корпус не обязан смотреть на цель: на орбите вокруг врага огонь не прерывается', () => {
-    const w = createWorld({ hull: 'frigate', at: 'pirate1' });
+    const w = calm(createWorld({ hull: 'frigate', at: 'pirate1' }));
     issueOrder(w, w.player, { type: 'orbit', target: 'pirate1', range: 5e3 });
     setAttack(w, w.player, 'pirate1');
     const shots: number[] = [];
     for (let t = 0; t < 20 && pirate(w); t += 0.02) {
       step(w, 0.02);
-      for (const e of w.events.splice(0)) if (e.type === 'shot') shots.push(w.time);
+      for (const e of w.events.splice(0)) if (myShot(e)) shots.push(w.time);
     }
     expect(shots.length).toBeGreaterThanOrEqual(8);
     // после первого выстрела — строго раз в перезарядку, хотя корабль всё время поворачивает
@@ -197,13 +204,13 @@ describe('шанс попадания', () => {
 
   it('фрегат на орбите 5 км: лёгкая турель почти всегда попадает, тяжёлая почти всегда мажет', () => {
     const run = (gun: string) => {
-      const w = createWorld({ hull: 'frigate', gun, at: 'pirate1' });
+      const w = calm(createWorld({ hull: 'frigate', gun, at: 'pirate1' }));
       issueOrder(w, w.player, { type: 'orbit', target: 'pirate1', range: 5e3 });
       step(w, 30); // разгон и выход на орбиту
       w.events.length = 0;
       setAttack(w, w.player, 'pirate1');
       const shots: SimEvent[] = [];
-      for (let t = 0; t < 60 && pirate(w); t += 0.1) { step(w, 0.1); shots.push(...w.events.splice(0).filter((e) => e.type === 'shot')); }
+      for (let t = 0; t < 60 && pirate(w); t += 0.1) { step(w, 0.1); shots.push(...w.events.splice(0).filter(myShot)); }
       const hits = shots.filter((e) => e.type === 'shot' && e.hit).length;
       return { shots: shots.length, hits };
     };
@@ -216,7 +223,7 @@ describe('шанс попадания', () => {
 
   it('стоя на месте тяжёлая турель убивает быстрее лёгкой', () => {
     const killTime = (gun: string) => {
-      const w = createWorld({ gun, at: 'pirate1' });
+      const w = calm(createWorld({ gun, at: 'pirate1' }));
       setAttack(w, w.player, 'pirate1');
       runUntil(w, () => !pirate(w));
       return w.time;
@@ -226,13 +233,13 @@ describe('шанс попадания', () => {
 
   it('промах не наносит урона, а броски повторяются при том же сиде', () => {
     const run = () => {
-      const w = createWorld({ hull: 'frigate', gun: 'heavy', at: 'pirate1', seed: 3 });
+      const w = calm(createWorld({ hull: 'frigate', gun: 'heavy', at: 'pirate1', seed: 3 }));
       issueOrder(w, w.player, { type: 'orbit', target: 'pirate1', range: 15e3 });
       setAttack(w, w.player, 'pirate1');
       const res: string[] = [];
       for (let t = 0; t < 60 && pirate(w); t += 0.1) {
         step(w, 0.1);
-        for (const e of w.events.splice(0)) if (e.type === 'shot') {
+        for (const e of w.events.splice(0)) if (e.type === 'shot' && e.ship === 'player') {
           expect(e.damage).toBe(e.hit ? TURRETS.heavy.damage : 0);
           res.push(e.hit ? 'x' : '.');
         }

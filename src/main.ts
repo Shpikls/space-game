@@ -1,7 +1,7 @@
 import './styles.css';
 import { createSpaceView } from './render/scene';
 import { scenarioFromUrl } from './scenarios/url';
-import { createWorld } from './sim/world';
+import { createWorld, respawnPlayer } from './sim/world';
 import { step } from './sim/step';
 import { createDebug } from './ui/debug';
 import { $ } from './ui/format';
@@ -16,7 +16,7 @@ world.timeScale = scenario.timeScale;
 
 const canvas = $<HTMLCanvasElement>('scene');
 const view = createSpaceView(canvas, world, world.player);
-const hud = createHud(world);
+const hud = createHud(world, () => { respawnPlayer(world); overview.invalidate(); });
 const overview = createOverview(world, hud.toast);
 const updateLabels = createLabels(world, view.project, overview.selected, overview.select);
 const debug = createDebug(world, view, overview.invalidate);

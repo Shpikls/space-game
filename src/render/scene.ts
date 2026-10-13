@@ -186,7 +186,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     for (const s of world.ships) {
       const m = shipMeshes.get(s.id)!;
       const rx = s.pos.x - p.x, rz = s.pos.z - p.z;
-      m.visible = Math.hypot(rx, rz) < 3e6; if (!m.visible) continue;
+      m.visible = !s.dead && Math.hypot(rx, rz) < 3e6; if (!m.visible) continue;
       m.position.set(rx, 0, rz); m.rotation.y = s.yaw;
       const f = s.warp ? 1 : Math.min(1, s.speed / s.hull.maxSpeed);
       const { glow, L, turrets } = m.userData as ShipMeshData;

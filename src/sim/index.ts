@@ -1,4 +1,6 @@
+export * from './ai';
 export * from './combat';
+export * from './damage';
 export * from './constants';
 export * from './hulls';
 export * from './math';
