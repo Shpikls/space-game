@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import type { Vec2 } from '../sim/types';
 import { glowTexture } from './textures';
 
@@ -9,21 +12,27 @@ export interface P3 {
   z: number;
 }
 
-const boltTex = glowTexture('rgba(255,252,235,1)', 'rgba(255,196,96,.7)');
 const flashTex = glowTexture('rgba(255,250,230,1)', 'rgba(255,170,80,.5)');
 
-// Снаряды и вспышки рисуются одного размера на экране, на любой дистанции (sizeAttenuation: false),
+// Вспышки одного размера на экране на любой дистанции (sizeAttenuation: false),
 // иначе выстрел на 15 км был бы невидимой точкой
-const BOLT_SIZE = 0.035, MUZZLE_SIZE = 0.07, IMPACT_SIZE = 0.13;
+const MUZZLE_SIZE = 0.07, IMPACT_SIZE = 0.13;
 
-interface Bolt { from: P3; to: P3; t: number; life: number; head: THREE.Sprite; trail: THREE.Line }
+// Снаряд — сплошной трассер, а не яркая точка: за кадр он пролетает десятки пикселей,
+// и точка на соседних кадрах виделась бы цепочкой, как очередь из пулемёта.
+// Трассер длиннее шага за кадр, поэтому глаз видит один летящий росчерк
+const TRACER_WIDTH = 3; // пикселей
+const TRACER_LENGTH = 0.35; // доля пути до цели
+// Хвост тёмный — при сложении цветов почти невидим, голова яркая
+const TAIL_COLOR = [0.1, 0.06, 0.02], HEAD_COLOR = [1, 0.9, 0.62];
+
+interface Tracer { from: P3; to: P3; t: number; life: number; line: Line2 }
 interface Flash { at: P3; t: number; life: number; size: number; grow: boolean; sprite: THREE.Sprite }
 
-/** Выстрелы как картинка: вспышка у ствола, снаряд со следом летит к цели, вспышка попадания. Урон считает симуляция. */
+/** Выстрелы как картинка: вспышка у ствола, трассер летит к цели, вспышка попадания. Урон считает симуляция. */
 export function createShotFx(scene: THREE.Scene) {
-  const bolts: Bolt[] = [], flashes: Flash[] = [];
-  const headMat = new THREE.SpriteMaterial({ map: boltTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false });
-  const trailMat = new THREE.LineBasicMaterial({ color: 0xffd38a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const tracers: Tracer[] = [], flashes: Flash[] = [];
+  const tracerMat = new LineMaterial({ linewidth: TRACER_WIDTH, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
 
   function flash(at: P3, size: number, life: number, grow: boolean) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false }));
@@ -33,32 +42,29 @@ export function createShotFx(scene: THREE.Scene) {
 
   function spawn(from: P3, to: P3) {
     const d = Math.hypot(to.x - from.x, to.z - from.z);
-    const head = new THREE.Sprite(headMat);
-    head.scale.setScalar(BOLT_SIZE);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    const trail = new THREE.Line(geo, trailMat);
-    trail.frustumCulled = false;
-    scene.add(head, trail);
+    const geo = new LineGeometry();
+    geo.setPositions([0, 0, 0, 0, 0, 0]);
+    geo.setColors([...TAIL_COLOR, ...HEAD_COLOR]);
+    const line = new Line2(geo, tracerMat);
+    line.frustumCulled = false;
+    scene.add(line);
     // полёт занимает доли секунды: на 10 км — полсекунды
-    bolts.push({ from, to, t: 0, life: Math.min(0.7, Math.max(0.2, d / 20000)), head, trail });
+    tracers.push({ from, to, t: 0, life: Math.min(0.7, Math.max(0.2, d / 20000)), line });
     flash(from, MUZZLE_SIZE, 0.15, false);
   }
 
   /** Кадр: всё переводится в координаты относительно корабля игрока (origin). */
   function update(dt: number, origin: Vec2) {
+    tracerMat.resolution.set(window.innerWidth, window.innerHeight);
     const rel = (a: P3, b: P3, u: number): [number, number, number] =>
       [a.x + (b.x - a.x) * u - origin.x, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u - origin.z];
-    for (let i = bolts.length - 1; i >= 0; i--) {
-      const b = bolts[i]!;
+    for (let i = tracers.length - 1; i >= 0; i--) {
+      const b = tracers[i]!;
       b.t += dt;
       const k = Math.min(1, b.t / b.life);
-      const head = rel(b.from, b.to, k), tail = rel(b.from, b.to, Math.max(0, k - 0.35));
-      b.head.position.set(...head);
-      const pos = b.trail.geometry.attributes.position as THREE.BufferAttribute;
-      pos.set([...tail, ...head]); pos.needsUpdate = true;
+      (b.line.geometry as LineGeometry).setPositions([...rel(b.from, b.to, Math.max(0, k - TRACER_LENGTH)), ...rel(b.from, b.to, k)]);
       if (k >= 1) {
-        scene.remove(b.head, b.trail); b.trail.geometry.dispose(); bolts.splice(i, 1);
+        scene.remove(b.line); b.line.geometry.dispose(); tracers.splice(i, 1);
         flash(b.to, IMPACT_SIZE, 0.35, true);
       }
     }
