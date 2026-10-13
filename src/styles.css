@@ -113,6 +113,15 @@ body{
 .row-item .k{color:var(--dim);font-size:13px}
 .row-item .dist{color:var(--dim);font-size:14px;min-width:78px;text-align:right}
 .empty{color:var(--dim);font-size:13.5px;padding:10px 8px}
+/* На широком экране (и телефоне боком) обзор — колонкой справа под шестерёнкой: центр экрана остаётся кораблю */
+@media (min-width:720px){
+  #sheet{left:auto;right:10px;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 64px);margin:0;width:340px;max-width:none;
+    max-height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 74px);
+    max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 74px);
+    display:flex;flex-direction:column;padding:0;border-radius:16px;border-bottom:1px solid var(--line)}
+  .chips{flex-wrap:wrap;overflow-x:visible}
+  #list{max-height:none;flex:1 1 auto;min-height:0}
+}
 
 #debug{position:fixed;top:0;right:0;bottom:0;width:min(360px,100%);padding:calc(env(safe-area-inset-top,0px) + 14px) 14px 14px;
   overflow-y:auto;background:var(--glass-strong);border-left:1px solid var(--line);transform:translateX(105%);transition:transform .22s ease;z-index:5}
