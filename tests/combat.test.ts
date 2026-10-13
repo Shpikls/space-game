@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
-  HULLS, TURRETS, createWorld, issueOrder, setAttack, spawnPirate, step, surfaceDistance, teleport,
-  type PlayerWorld, type Ship, type SimEvent,
+  AIM_TOLERANCE, DEG, HULLS, TURRETS, attackStatus, createWorld, issueOrder, setAttack, spawnPirate, step, surfaceDistance,
+  teleport, wrap, yawTo, type PlayerWorld, type Ship, type SimEvent,
 } from '../src/sim';
 
 const pirate = (w: PlayerWorld) => w.byId.pirate1 as Ship | undefined;
+
+/** На какой угол башне игрока надо повернуться к пирату (корабль стоит, нос не двигается). */
+const aimNeeded = (w: PlayerWorld) => {
+  const p = pirate(w)!, s = w.player;
+  return Math.abs(wrap(yawTo(p.pos.x - s.pos.x, p.pos.z - s.pos.z) - s.yaw));
+};
 
 /** Крутит мир шагами по 0,1 с, пока не выполнится условие; возвращает собранные события. */
 function runUntil(w: PlayerWorld, done: () => boolean, maxSec = 120): SimEvent[] {
@@ -48,12 +54,12 @@ describe('первая цель', () => {
     const w = createWorld({ at: 'pirate1' });
     expect(surfaceDistance(w.player, pirate(w)!)).toBeCloseTo(10e3, -1);
     setAttack(w, w.player, 'pirate1');
-    const start = w.time;
+    const start = w.time, aimTime = (aimNeeded(w) - AIM_TOLERANCE) / TURRETS.light.tracking;
     const events = runUntil(w, () => !pirate(w));
-    // первый выстрел сразу, дальше раз в 2 с: 10 выстрелов по 100 = 1000 прочности за 18 с
+    // башня наводится, затем 10 выстрелов по 100 раз в 2 с = 1000 прочности
     const shots = Math.ceil(HULLS.frigate.structure / TURRETS.light.damage);
     expect(events.filter((e) => e.type === 'shot')).toHaveLength(shots);
-    expect(w.time - start).toBeCloseTo((shots - 1) * TURRETS.light.cycle, 0);
+    expect(Math.abs(w.time - start - (aimTime + (shots - 1) * TURRETS.light.cycle))).toBeLessThan(0.15);
     const boom = events.find((e) => e.type === 'destroyed');
     expect(boom).toMatchObject({ ship: 'pirate1', by: 'player', name: 'Пират «Шакал»' });
     // корабля больше нет, на его месте обломки, турель свободна
@@ -90,5 +96,74 @@ describe('первая цель', () => {
     expect(again.structure).toBe(HULLS.frigate.structure);
     teleport(w, w.player, 'pirate1');
     expect(surfaceDistance(w.player, again)).toBeCloseTo(10e3, -1);
+  });
+});
+
+describe('турели', () => {
+  /** Время первого выстрела после приказа атаковать. */
+  function firstShot(w: PlayerWorld): number {
+    const start = w.time;
+    for (let t = 0; t < 60; t += 0.02) {
+      step(w, 0.02);
+      if (w.events.splice(0).some((e) => e.type === 'shot')) return w.time - start;
+    }
+    return Infinity;
+  }
+
+  it('башня сначала наводится, потом стреляет', () => {
+    const w = createWorld({ at: 'pirate1' });
+    expect(aimNeeded(w)).toBeGreaterThan(30 * DEG); // после переброски пират сбоку
+    setAttack(w, w.player, 'pirate1');
+    expect(attackStatus(w, w.player)).toBe('aiming');
+    const expected = (aimNeeded(w) - AIM_TOLERANCE) / TURRETS.light.tracking;
+    expect(Math.abs(firstShot(w) - expected)).toBeLessThan(0.05);
+    expect(attackStatus(w, w.player)).toBe('firing');
+  });
+
+  it('чем медленнее наведение, тем позже первый выстрел', () => {
+    const fast = createWorld({ at: 'pirate1' }), slow = createWorld({ at: 'pirate1' });
+    slow.player.turrets[0]!.def = { ...TURRETS.light, tracking: 10 * DEG };
+    setAttack(fast, fast.player, 'pirate1'); setAttack(slow, slow.player, 'pirate1');
+    const tf = firstShot(fast), ts = firstShot(slow);
+    expect(ts / tf).toBeCloseTo(3, 0);
+  });
+
+  it('корпус не обязан смотреть на цель: на орбите вокруг врага огонь не прерывается', () => {
+    const w = createWorld({ hull: 'frigate', at: 'pirate1' });
+    issueOrder(w, w.player, { type: 'orbit', target: 'pirate1', range: 5e3 });
+    setAttack(w, w.player, 'pirate1');
+    const shots: number[] = [];
+    for (let t = 0; t < 20 && pirate(w); t += 0.02) {
+      step(w, 0.02);
+      for (const e of w.events.splice(0)) if (e.type === 'shot') shots.push(w.time);
+    }
+    expect(shots.length).toBeGreaterThanOrEqual(8);
+    // после первого выстрела — строго раз в перезарядку, хотя корабль всё время поворачивает
+    for (let i = 1; i < shots.length; i++) expect(shots[i]! - shots[i - 1]!).toBeCloseTo(TURRETS.light.cycle, 1);
+  });
+
+  it('выстрел несёт точки «откуда» и «куда» для картинки', () => {
+    const w = createWorld({ at: 'pirate1' });
+    setAttack(w, w.player, 'pirate1');
+    let shot: SimEvent | undefined;
+    for (let t = 0; t < 30 && !shot; t += 0.02) { step(w, 0.02); shot = w.events.splice(0).find((e) => e.type === 'shot'); }
+    expect(shot).toMatchObject({ ship: 'player', target: 'pirate1', turret: 0, from: w.player.pos, to: pirate(w)!.pos });
+  });
+
+  it('без цели башня возвращается вперёд', () => {
+    const w = createWorld({ at: 'pirate1' });
+    setAttack(w, w.player, 'pirate1');
+    step(w, 10);
+    expect(Math.abs(w.player.turrets[0]!.aim)).toBeGreaterThan(30 * DEG);
+    setAttack(w, w.player, null);
+    expect(attackStatus(w, w.player)).toBe('none');
+    step(w, 10);
+    expect(w.player.turrets[0]!.aim).toBeCloseTo(0, 5);
+  });
+
+  it('дальше дальности — статус «далеко»', () => {
+    const w = createWorld({ at: 'station' });
+    setAttack(w, w.player, 'pirate1');
+    expect(attackStatus(w, w.player)).toBe('far');
   });
 });

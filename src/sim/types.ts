@@ -40,12 +40,16 @@ export interface TurretDef {
   cycle: number;
   /** дальность стрельбы, м */
   range: number;
+  /** скорость наведения: как быстро башня поворачивается к цели, рад/с */
+  tracking: number;
 }
 
 export interface Turret {
   def: TurretDef;
   /** сколько секунд до готовности к выстрелу */
   cooldown: number;
+  /** куда смотрит ствол относительно носа корабля, рад (0 — вперёд) */
+  aim: number;
 }
 
 export type ObjectType = 'star' | 'planet' | 'station' | 'belt' | 'signal' | 'asteroid' | 'wreck';
@@ -129,7 +133,7 @@ export type Entity = SpaceObject | Ship;
 export type SimEvent =
   | { type: 'warpStart'; ship: string; target: string }
   | { type: 'warpEnd'; ship: string; target: string; duration: number }
-  | { type: 'shot'; ship: string; target: string; damage: number }
+  | { type: 'shot'; ship: string; target: string; turret: number; damage: number; from: Vec2; to: Vec2 }
   | { type: 'destroyed'; ship: string; name: string; by: string; pos: Vec2; size: number };
 
 export interface World {

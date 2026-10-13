@@ -1,7 +1,6 @@
-import { weaponRange } from '../sim/combat';
+import { attackStatus, weaponRange } from '../sim/combat';
 import { DEG } from '../sim/constants';
 import type { PlayerWorld, SimEvent } from '../sim/types';
-import { surfaceDistance } from '../sim/world';
 import { $, fmtDist, fmtSec, fmtSpeed } from './format';
 
 export interface Hud {
@@ -45,8 +44,9 @@ export function createHud(world: PlayerWorld): Hud {
     const target = s.attack ? world.byId[s.attack] : undefined;
     statusEl.classList.toggle('attacking', !!target);
     if (target) {
-      const range = weaponRange(s), inRange = surfaceDistance(s, target) <= range;
-      $('attackLine').textContent = 'Атака: ' + target.name + (inRange ? ' — огонь' : ' — далеко, нужно ближе ' + fmtDist(range));
+      const st = attackStatus(world, s);
+      $('attackLine').textContent = 'Атака: ' + target.name +
+        (st === 'firing' ? ' — огонь' : st === 'aiming' ? ' — наводится' : ' — далеко, нужно ближе ' + fmtDist(weaponRange(s)));
     }
     if (s.align && !s.warp) {
       const deg = s.align.angle / DEG;
