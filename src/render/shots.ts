@@ -25,21 +25,26 @@ export interface ShotFx {
   /** точки в момент выстрела — если стрелок или цель исчезнут */
   from: P3;
   to: P3;
-  /** куда в корпус цели попал снаряд, относительно её центра */
+  /** куда летит снаряд относительно центра цели: в корпус или мимо */
   hit: P3;
+  /** промах: трассер пролетает дальше цели, вспышки попадания нет */
+  miss: boolean;
+  /** толщина трассера, пикселей, и размер вспышки у ствола — у тяжёлых турелей крупнее */
+  width: number;
+  muzzle: number;
 }
 
 const flashTex = glowTexture('rgba(255,250,230,1)', 'rgba(255,170,80,.5)');
 
 // Вспышки одного размера на экране на любой дистанции (sizeAttenuation: false),
 // иначе выстрел на 15 км был бы невидимой точкой
-const MUZZLE_SIZE = 0.07, IMPACT_SIZE = 0.13;
+const IMPACT_SIZE = 0.13;
 
 // Снаряд — сплошной трассер, а не яркая точка: за кадр он пролетает десятки пикселей,
 // и точка на соседних кадрах виделась бы цепочкой, как очередь из пулемёта.
 // Трассер длиннее шага за кадр, поэтому глаз видит один летящий росчерк
-const TRACER_WIDTH = 3; // пикселей
 const TRACER_LENGTH = 0.35; // доля пути до цели
+const MISS_OVERSHOOT = 1.5; // промах пролетает дальше цели — до полутора её дистанций
 // Хвост тёмный — при сложении цветов почти невидим, голова яркая
 const TAIL_COLOR = [0.1, 0.06, 0.02], HEAD_COLOR = [1, 0.9, 0.62];
 
@@ -56,7 +61,13 @@ const add = (a: P3, b: P3): P3 => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z })
  */
 export function createShotFx(scene: THREE.Scene) {
   const tracers: Tracer[] = [], flashes: Flash[] = [];
-  const tracerMat = new LineMaterial({ linewidth: TRACER_WIDTH, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  // материал на каждую толщину трассера
+  const tracerMats = new Map<number, LineMaterial>();
+  const tracerMat = (width: number) => {
+    let m = tracerMats.get(width);
+    if (!m) tracerMats.set(width, m = new LineMaterial({ linewidth: width, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    return m;
+  };
 
   function flash(f: Omit<Flash, 't' | 'sprite'>) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false }));
@@ -69,30 +80,32 @@ export function createShotFx(scene: THREE.Scene) {
     const geo = new LineGeometry();
     geo.setPositions([0, 0, 0, 0, 0, 0]);
     geo.setColors([...TAIL_COLOR, ...HEAD_COLOR]);
-    const line = new Line2(geo, tracerMat);
+    const line = new Line2(geo, tracerMat(shot.width));
     line.frustumCulled = false;
     scene.add(line);
     // полёт занимает доли секунды: на 10 км — полсекунды
-    tracers.push({ shot, t: 0, life: Math.min(0.7, Math.max(0.2, d / 20000)), line });
-    flash({ ship: shot.shooter, turret: shot.turret, at: shot.from, life: 0.15, size: MUZZLE_SIZE, grow: false });
+    const life = Math.min(0.7, Math.max(0.2, d / 20000));
+    tracers.push({ shot, t: 0, life: shot.miss ? life * MISS_OVERSHOOT : life, line });
+    flash({ ship: shot.shooter, turret: shot.turret, at: shot.from, life: 0.15, size: shot.muzzle, grow: false });
   }
 
   /** Кадр: концы берутся там, где сейчас стволы и цели, и переводятся в координаты относительно игрока (origin). */
   function update(dt: number, origin: Vec2, locate: Locate) {
-    tracerMat.resolution.set(window.innerWidth, window.innerHeight);
+    for (const m of tracerMats.values()) m.resolution.set(window.innerWidth, window.innerHeight);
     for (let i = tracers.length - 1; i >= 0; i--) {
       const b = tracers[i]!, s = b.shot;
       b.t += dt;
-      const k = Math.min(1, b.t / b.life);
+      // промах летит дальше цели: путь до неё — доля 1, дальше — до MISS_OVERSHOOT
+      const end = s.miss ? MISS_OVERSHOOT : 1, k = Math.min(end, (b.t / b.life) * end);
       // запоминаем последние известные точки: стрелок или цель могут исчезнуть посреди полёта
       s.from = locate.muzzle(s.shooter, s.turret) ?? s.from;
       const target = locate.ship(s.target);
       if (target) s.to = add(target, s.hit);
       const at = (u: number) => [s.from.x + (s.to.x - s.from.x) * u - origin.x, s.from.y + (s.to.y - s.from.y) * u, s.from.z + (s.to.z - s.from.z) * u - origin.z];
       (b.line.geometry as LineGeometry).setPositions([...at(Math.max(0, k - TRACER_LENGTH)), ...at(k)]);
-      if (k >= 1) {
+      if (k >= end) {
         scene.remove(b.line); b.line.geometry.dispose(); tracers.splice(i, 1);
-        flash({ ship: s.target, offset: s.hit, at: s.to, life: 0.35, size: IMPACT_SIZE, grow: true });
+        if (!s.miss) flash({ ship: s.target, offset: s.hit, at: s.to, life: 0.35, size: IMPACT_SIZE, grow: true });
       }
     }
     for (let i = flashes.length - 1; i >= 0; i--) {

@@ -11,7 +11,7 @@ import { createLabels } from './ui/labels';
 import { createOverview } from './ui/overview';
 
 const scenario = scenarioFromUrl(location.search);
-const world = createWorld({ hull: scenario.hull, at: scenario.at });
+const world = createWorld({ hull: scenario.hull, gun: scenario.gun, at: scenario.at });
 world.timeScale = scenario.timeScale;
 
 const canvas = $<HTMLCanvasElement>('scene');

@@ -2,23 +2,27 @@ import { AU, DEG, MIN_WARP } from './constants';
 import { HULLS, isHullKey } from './hulls';
 import { yawTo } from './math';
 import { rng } from './rng';
-import { TURRETS, mountTurret } from './turrets';
+import { TURRETS, isTurretKey, mountTurret } from './turrets';
 import type { Entity, Faction, HullKey, PlanetLook, PlayerWorld, Ship, SpaceObject, Vec2, World } from './types';
 
 export interface WorldOptions {
   seed?: number;
   hull?: string;
+  /** турель игрока: light или heavy; неизвестная — лёгкая */
+  gun?: string;
   /** id объекта, у которого появляется игрок */
   at?: string;
 }
 
-export const emptyWorld = (): World => ({
+export const emptyWorld = (seed = 7): World => ({
   time: 0, timeScale: 1, objects: [], ships: [], byId: {}, events: [], debug: { instantWarp: false }, player: null,
+  // отдельный поток случайности для попаданий: расположение астероидов от него не зависит
+  rng: rng(seed + 1000),
 });
 
 /** Система «Ксанта»: звезда, пять планет, станция, пояс, сигнал с обломками и два NPC. */
 export function createWorld(opts: WorldOptions = {}): PlayerWorld {
-  const world = emptyWorld();
+  const world = emptyWorld(opts.seed || 7);
   const r = rng(opts.seed || 7);
   const add = (o: SpaceObject) => { world.objects.push(o); world.byId[o.id] = o; return o; };
   const polar = (au: number, deg: number): Vec2 => ({ x: Math.sin(deg * DEG) * au * AU, z: Math.cos(deg * DEG) * au * AU });
@@ -58,7 +62,7 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
   spawnPirate(world);
 
   const player = addShip(world, 'player', 'Ваш корабль', isHullKey(opts.hull) ? opts.hull : 'cruiser', { x: 0, z: 0 }, 0, 'player');
-  player.turrets = [mountTurret(TURRETS.light)];
+  player.turrets = [mountTurret(TURRETS[isTurretKey(opts.gun) ? opts.gun : 'light'])];
   world.player = player;
   teleport(world, player, opts.at || 'station');
   return world as PlayerWorld;

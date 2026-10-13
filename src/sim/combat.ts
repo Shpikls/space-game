@@ -1,5 +1,5 @@
 import { clamp, wrap, yawTo } from './math';
-import { AIM_TOLERANCE } from './turrets';
+import { AIM_TOLERANCE, slewRate } from './turrets';
 import type { Ship, SpaceObject, Turret, World } from './types';
 import { surfaceDistance } from './world';
 
@@ -28,10 +28,33 @@ function attackTarget(world: World, s: Ship): Ship | null {
 /** Куда должен смотреть ствол (относительно носа), чтобы попасть в цель. */
 const aimTo = (s: Ship, t: Ship) => wrap(yawTo(t.pos.x - s.pos.x, t.pos.z - s.pos.z) - s.yaw);
 
-/** Поворачивает башню к нужному углу не быстрее её скорости наведения. */
+/** Поворачивает башню к нужному углу не быстрее её скорости поворота. */
 function rotateTurret(tr: Turret, want: number, dt: number) {
-  const mx = tr.def.tracking * dt;
+  const mx = slewRate(tr.def) * dt;
   tr.aim = wrap(tr.aim + clamp(wrap(want - tr.aim), -mx, mx));
+}
+
+/** Скорость корабля вектором: летит носом вперёд, в варпе — по направлению варпа. */
+function velocity(s: Ship): { x: number; z: number } {
+  if (s.warp) return { x: s.warp.dx * s.warp.v, z: s.warp.dz * s.warp.v };
+  return { x: Math.sin(s.yaw) * s.speed, z: Math.cos(s.yaw) * s.speed };
+}
+
+/** Угловая скорость цели, как её видит стрелок: поперечная скорость / расстояние, рад/с. */
+export function angularVelocity(s: Ship, t: Ship): number {
+  const rx = t.pos.x - s.pos.x, rz = t.pos.z - s.pos.z, d = Math.hypot(rx, rz) || 1;
+  const vs = velocity(s), vt = velocity(t);
+  const transversal = Math.abs(rx * (vt.z - vs.z) - rz * (vt.x - vs.x)) / d;
+  return transversal / d;
+}
+
+/**
+ * Шанс попадания, как в EVE: 0,5 в степени ((угловая скорость / скорость наведения) × (калибр / сигнатура цели))².
+ * Неподвижная цель — 100%. Быстро смещающаяся мелкая цель для крупного медленного калибра — почти 0%.
+ */
+export function hitChance(s: Ship, tr: Turret, t: Ship): number {
+  const term = (angularVelocity(s, t) / tr.def.tracking) * (tr.def.signatureResolution / t.hull.signature);
+  return Math.pow(0.5, term * term);
 }
 
 export type AttackStatus = 'none' | 'far' | 'aiming' | 'firing';
@@ -45,6 +68,15 @@ export function attackStatus(world: World, s: Ship): AttackStatus {
   if (ready.length === 0) return 'far';
   const want = aimTo(s, t);
   return ready.some((tr) => Math.abs(wrap(want - tr.aim)) <= AIM_TOLERANCE) ? 'firing' : 'aiming';
+}
+
+/** Шанс попадания сейчас: лучший среди турелей, которые достают до цели (null — некого или нечем). */
+export function currentHitChance(world: World, s: Ship): number | null {
+  const t = attackTarget(world, s);
+  if (!t) return null;
+  const d = surfaceDistance(s, t);
+  const ready = s.turrets.filter((tr) => d <= tr.def.range);
+  return ready.length ? Math.max(...ready.map((tr) => hitChance(s, tr, t))) : null;
 }
 
 /**
@@ -62,8 +94,9 @@ export function stepWeapons(world: World, s: Ship, dt: number): void {
     rotateTurret(tr, want, dt);
     if (tr.cooldown > 0 || d > tr.def.range || Math.abs(wrap(want - tr.aim)) > AIM_TOLERANCE) continue;
     tr.cooldown = tr.def.cycle;
-    t.structure = Math.max(0, t.structure - tr.def.damage);
-    world.events.push({ type: 'shot', ship: s.id, target: t.id, turret: i, damage: tr.def.damage, from: { ...s.pos }, to: { ...t.pos } });
+    const chance = hitChance(s, tr, t), hit = world.rng() < chance;
+    if (hit) t.structure = Math.max(0, t.structure - tr.def.damage);
+    world.events.push({ type: 'shot', ship: s.id, target: t.id, turret: i, hit, chance, damage: hit ? tr.def.damage : 0, from: { ...s.pos }, to: { ...t.pos } });
     if (t.structure <= 0) {
       t.dead = true;
       world.events.push({ type: 'destroyed', ship: t.id, name: t.name, by: s.id, pos: { ...t.pos }, size: t.hull.size });

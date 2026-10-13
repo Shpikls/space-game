@@ -74,7 +74,7 @@ function buildTurret(L: number, mat: THREE.Material): { turret: THREE.Group; muz
 const SHIP_ENV_INTENSITY = 0.4;
 
 /** Корабль длиной L = h.size вдоль оси Z, с факелом двигателя и башнями турелей сверху. */
-export function buildShip(h: Hull, tint: number, turretCount = 0, env: THREE.Texture | null = null): THREE.Group {
+export function buildShip(h: Hull, tint: number, turretSizes: number[] = [], env: THREE.Texture | null = null): THREE.Group {
   const g = new THREE.Group(), L = h.size;
   const lit = { envMap: env, envMapIntensity: SHIP_ENV_INTENSITY };
   const mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0.55, roughness: 0.38, ...lit });
@@ -91,11 +91,12 @@ export function buildShip(h: Hull, tint: number, turretCount = 0, env: THREE.Tex
   glow.position.z = -L * 0.4; glow.scale.setScalar(L * 0.45); g.add(glow);
   const turrets: THREE.Object3D[] = [], muzzles: THREE.Object3D[] = [];
   const turretMat = new THREE.MeshStandardMaterial({ color: 0x5b6573, metalness: 0.6, roughness: 0.4, ...lit });
-  for (let i = 0; i < turretCount; i++) {
+  turretSizes.forEach((size, i) => {
     const { turret, muzzle } = buildTurret(L, turretMat);
+    turret.scale.setScalar(size);
     turret.position.set(0, L * 0.095, L * 0.1 - i * L * 0.16);
     g.add(turret); turrets.push(turret); muzzles.push(muzzle);
-  }
+  });
   const data: ShipMeshData = { glow, L, turrets, muzzles };
   g.userData = data;
   return g;

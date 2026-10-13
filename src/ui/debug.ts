@@ -3,6 +3,7 @@ import { TIME_SCALES } from '../scenarios/url';
 import { DEG } from '../sim/constants';
 import { HULLS, angAccel, isHullKey, linAccel } from '../sim/hulls';
 import { measureWarp, type WarpMeasure } from '../sim/measure';
+import { TURRETS, isTurretKey, mountTurret, slewRate } from '../sim/turrets';
 import type { HullKey, PlayerWorld } from '../sim/types';
 import { spawnPirate, teleport } from '../sim/world';
 import { $, fmtSec, nf } from './format';
@@ -20,6 +21,7 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
   const measured: Partial<Record<HullKey, { a90: WarpMeasure; a180: WarpMeasure; w30: WarpMeasure }>> = {};
   function render() {
     $('hullSeg').innerHTML = Object.values(HULLS).map((h) => `<button class="btn${player.hull === h ? ' on' : ''}" data-h="${h.key}">${h.name}</button>`).join('');
+    $('gunSeg').innerHTML = Object.values(TURRETS).map((t) => `<button class="btn${player.turrets[0]?.def.key === t.key ? ' on' : ''}" data-gun="${t.key}">${t.name}</button>`).join('');
     $('timeSeg').innerHTML = TIME_SCALES.map((k) => `<button class="btn${world.timeScale === k ? ' on' : ''}" data-k="${k}">×${k}</button>`).join('');
     $('instantBtn').classList.toggle('on', world.debug.instantWarp);
     $('tpSeg').innerHTML = TELEPORTS.map(([id, n]) => `<button class="btn" data-tp="${id}">${n}</button>`).join('');
@@ -34,6 +36,8 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
       ['Разгон', Math.round(linAccel(h)) + ' м/с²'],
       ['Макс. скорость', h.maxSpeed + ' м/с'],
       ['Скорость варпа', h.warpSpeed + ' а. е./с'],
+      ['Прочность', nf.format(h.structure)],
+      ['Сигнатура', h.signature + ' м'],
       ['Выравнивание, поворот 90°', m.a90.align.toFixed(1).replace('.', ',') + ' с'],
       ['Выравнивание, поворот 180°', m.a180.align.toFixed(1).replace('.', ',') + ' с'],
       ['Варп на 10 а. е.', fmtSec(m.a90.warp)],
@@ -44,6 +48,8 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
         ['Перезарядка', String(tr.def.cycle).replace('.', ',') + ' с'],
         ['Дальность', nf.format(tr.def.range / 1000) + ' км'],
         ['Скорость наведения', Math.round(tr.def.tracking / DEG) + ' °/с'],
+        ['Калибр', tr.def.signatureResolution + ' м'],
+        ['Поворот башни', Math.round(slewRate(tr.def) / DEG) + ' °/с'],
       ]),
     ];
     $('stats').innerHTML = rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
@@ -54,6 +60,9 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
     if (isHullKey(b.dataset.h)) {
       player.hull = HULLS[b.dataset.h]; player.speed = Math.min(player.speed, player.hull.maxSpeed);
       view.rebuildShipMesh(player); view.cam.dist = player.hull.size * 7;
+    } else if (isTurretKey(b.dataset.gun)) {
+      player.turrets = [mountTurret(TURRETS[b.dataset.gun])];
+      view.rebuildShipMesh(player);
     } else if (b.dataset.k) world.timeScale = Number(b.dataset.k);
     else if (b.id === 'instantBtn') world.debug.instantWarp = !world.debug.instantWarp;
     else if (b.id === 'pirateBtn') { spawnPirate(world); onTeleport(); }

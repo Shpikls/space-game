@@ -1,4 +1,4 @@
-import { attackStatus, weaponRange } from '../sim/combat';
+import { attackStatus, currentHitChance, weaponRange } from '../sim/combat';
 import { DEG } from '../sim/constants';
 import type { PlayerWorld, SimEvent } from '../sim/types';
 import { $, fmtDist, fmtSec, fmtSpeed } from './format';
@@ -42,9 +42,11 @@ export function createHud(world: PlayerWorld): Hud {
     const target = s.attack ? world.byId[s.attack] : undefined;
     statusEl.classList.toggle('attacking', !!target);
     if (target) {
-      const st = attackStatus(world, s);
+      const st = attackStatus(world, s), chance = currentHitChance(world, s);
+      // шанс показываем всегда, когда достаём: по нему видно, что мешает попадать
+      const odds = chance === null ? '' : ', попадание ' + Math.round(chance * 100) + '%' + (chance < 0.5 ? ' — цель быстро смещается' : '');
       $('attackLine').textContent = 'Атака: ' + target.name +
-        (st === 'firing' ? ' — огонь' : st === 'aiming' ? ' — наводится' : ' — далеко, нужно ближе ' + fmtDist(weaponRange(s)));
+        (st === 'firing' ? ' — огонь' + odds : st === 'aiming' ? ' — наводится' + odds : ' — далеко, нужно ближе ' + fmtDist(weaponRange(s)));
     }
     if (s.align && !s.warp) {
       const deg = s.align.angle / DEG;
