@@ -60,9 +60,10 @@ export function createHud(world: PlayerWorld): Hud {
       $('warpLeft').textContent = fmtDist(s.warp.total - s.warp.traveled);
       $('warpBar').style.width = ((100 * s.warp.traveled) / s.warp.total).toFixed(2) + '%';
     }
-    const stopBtn = $<HTMLButtonElement>('stopBtn');
-    stopBtn.disabled = !!s.warp;
-    stopBtn.style.opacity = s.warp ? '0.4' : '1';
+    document.querySelectorAll<HTMLButtonElement>('[data-stop]').forEach((b) => {
+      b.disabled = !!s.warp;
+      b.style.opacity = s.warp ? '0.4' : '1';
+    });
   }
 
   let toastTimer: ReturnType<typeof setTimeout> | undefined;

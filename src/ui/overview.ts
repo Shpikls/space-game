@@ -46,6 +46,7 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
 
   function renderActions() {
     const e = selected ? world.byId[selected] : undefined;
+    $('sheet').classList.toggle('has-sel', !!e);
     if (!e) {
       $('selName').innerHTML = 'Ничего не выбрано'; $('selHint').textContent = 'Выберите объект в обзоре или на экране.';
       $('chips').innerHTML = ''; $('selHp').hidden = true; actionsKey = ''; return;
@@ -80,7 +81,21 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
     $('chips').innerHTML = chips.map((c) => `<button class="btn${c[3] ? ' ' + c[3] : ''}" data-o="${c[0]}" data-v="${c[1]}">${c[2]}</button>`).join('');
   }
 
-  function select(id: string) { selected = id; actionsKey = ''; listKey = ''; renderActions(); renderList(); }
+  function select(id: string) {
+    selected = id; actionsKey = ''; listKey = '';
+    setListOpen(false); // на телефоне список закрывается сам — остаётся компактная карточка
+    renderActions(); renderList();
+  }
+
+  /** Список объектов на телефоне открывается кнопкой «Обзор» (на широком экране он виден всегда). */
+  function setListOpen(open: boolean) {
+    $('sheet').classList.toggle('list-open', open);
+    const b = $('overviewBtn');
+    b.classList.toggle('on', open);
+    b.setAttribute('aria-expanded', String(open));
+    if (open) { listKey = ''; renderList(); }
+  }
+  $('overviewBtn').addEventListener('click', () => setListOpen(!$('sheet').classList.contains('list-open')));
 
   listEl.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('.row-item'); if (b) select(b.dataset.id!);
@@ -103,7 +118,9 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
       : type === 'orbit' || type === 'keep' ? { type, target: selected, range: v } : { type: 'stop' };
     if (!issueOrder(world, player, order)) toast(player.warp ? 'Варп нельзя прервать' : 'Приказ недоступен');
   });
-  $('stopBtn').addEventListener('click', () => { if (!issueOrder(world, player, { type: 'stop' })) toast('Варп нельзя прервать'); });
+  document.querySelectorAll('[data-stop]').forEach((b) => b.addEventListener('click', () => {
+    if (!issueOrder(world, player, { type: 'stop' })) toast('Варп нельзя прервать');
+  }));
 
   return {
     selected: () => selected,
