@@ -17,6 +17,7 @@
   <div id="status" class="card">
     <div class="row"><span id="hullName"></span><span id="speed"></span></div>
     <div id="state">Стоп</div>
+    <div id="attackLine"></div>
     <div id="bigSpeed"></div>
     <div id="alignBox">
       <div class="row"><span>Курс</span><span id="alignAngle"></span></div>
@@ -41,6 +42,7 @@
   <div id="actions">
     <div id="selName">Ничего не выбрано</div>
     <div id="selHint">Выберите объект в обзоре или на экране.</div>
+    <div id="selHp" class="hp" hidden><div class="row"><span>Прочность</span><span id="selHpText"></span></div><div class="meter"><i id="selHpBar"></i></div></div>
     <div class="chips" id="chips"></div>
   </div>
   <div class="tabs">
@@ -58,11 +60,13 @@
   <div class="seg" id="timeSeg"></div>
   <h3>Варп</h3>
   <div class="seg"><button class="btn" id="instantBtn">Мгновенный варп</button></div>
+  <h3>Бой</h3>
+  <div class="seg"><button class="btn" id="pirateBtn">Вернуть пирата</button></div>
   <h3>Перенестись</h3>
   <div class="seg" id="tpSeg"></div>
   <h3>Характеристики корпуса</h3>
   <table id="stats"></table>
-  <p>Параметры в адресе: ?ship=frigate|cruiser|battleship, ?at=station|belt|signal|p3, ?speed=4, ?debug=1</p>
+  <p>Параметры в адресе: ?ship=frigate|cruiser|battleship, ?at=station|belt|signal|p3|pirate1, ?speed=4, ?debug=1</p>
 </aside>
 
 <script type="module" src="/src/main.ts"></script>

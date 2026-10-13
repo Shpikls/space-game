@@ -1,5 +1,7 @@
+import { weaponRange } from '../sim/combat';
 import { DEG } from '../sim/constants';
-import type { PlayerWorld } from '../sim/types';
+import type { PlayerWorld, SimEvent } from '../sim/types';
+import { surfaceDistance } from '../sim/world';
 import { $, fmtDist, fmtSec, fmtSpeed } from './format';
 
 export interface Hud {
@@ -8,8 +10,8 @@ export interface Hud {
   toast(msg: string): void;
   /** убрать подсказку для новичка (после первого действия или через 9 с) */
   hideHint(): void;
-  /** показать всплывающие сообщения о событиях симуляции и очистить очередь */
-  handleEvents(): void;
+  /** показать всплывающие сообщения о событиях симуляции */
+  handleEvents(events: SimEvent[]): void;
 }
 
 export function createHud(world: PlayerWorld): Hud {
@@ -40,6 +42,12 @@ export function createHud(world: PlayerWorld): Hud {
     $('state').textContent = stateText();
     statusEl.classList.toggle('aligning', !!s.align && s.order.type === 'warp' && !s.warp);
     statusEl.classList.toggle('warping', !!s.warp);
+    const target = s.attack ? world.byId[s.attack] : undefined;
+    statusEl.classList.toggle('attacking', !!target);
+    if (target) {
+      const range = weaponRange(s), inRange = surfaceDistance(s, target) <= range;
+      $('attackLine').textContent = 'Атака: ' + target.name + (inRange ? ' — огонь' : ' — далеко, нужно ближе ' + fmtDist(range));
+    }
     if (s.align && !s.warp) {
       const deg = s.align.angle / DEG;
       $('alignAngle').textContent = deg < 2 ? 'на цели' : Math.round(deg) + '°';
@@ -72,13 +80,13 @@ export function createHud(world: PlayerWorld): Hud {
   }
   setTimeout(hideHint, 9000);
 
-  function handleEvents() {
-    for (const e of world.events) {
+  function handleEvents(events: SimEvent[]) {
+    for (const e of events) {
+      if (e.type === 'destroyed' && e.by === 'player') toast(e.name + ' уничтожен');
       if (e.ship !== 'player') continue;
       if (e.type === 'warpStart') toast('Варп к «' + world.byId[e.target]!.name + '»');
       if (e.type === 'warpEnd') toast('Прибыли к «' + world.byId[e.target]!.name + '»' + (e.duration ? ' за ' + fmtSec(e.duration) : ''));
     }
-    world.events.length = 0;
   }
 
   return { update, toast, hideHint, handleEvents };

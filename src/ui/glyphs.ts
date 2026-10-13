@@ -19,7 +19,12 @@ const BODY: Record<EntityType, string> = {
   ship: `<path d="M7 2 12 11.5H2Z" fill="none" stroke="#e3a87a" stroke-width="1.5"/>`,
 };
 
-/** Значок типа объекта для обзора и меток. */
-export function glyph(type: EntityType, size = 14): string {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" aria-hidden="true">${BODY[type]}</svg>`;
+const HOSTILE_SHIP = `<path d="M7 2 12 11.5H2Z" fill="#ff7a6b" fill-opacity=".35" stroke="#ff7a6b" stroke-width="1.5"/>`;
+
+/** Враг — корабль пиратов. */
+export const isHostile = (e: Entity) => e.type === 'ship' && e.faction === 'pirate';
+
+/** Значок объекта для обзора и меток; враги — красные. */
+export function glyph(e: Entity, size = 14): string {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" aria-hidden="true">${isHostile(e) ? HOSTILE_SHIP : BODY[e.type]}</svg>`;
 }

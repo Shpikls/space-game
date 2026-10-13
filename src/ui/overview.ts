@@ -1,9 +1,10 @@
+import { setAttack } from '../sim/combat';
 import { GRID_RANGE } from '../sim/constants';
 import { issueOrder } from '../sim/step';
 import type { Entity, Order, PlayerWorld } from '../sim/types';
 import { canWarpTo, surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
-import { TYPE_NAME, glyph } from './glyphs';
+import { TYPE_NAME, glyph, isHostile } from './glyphs';
 
 export interface Overview {
   selected(): string | null;
@@ -36,7 +37,7 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void,
       listKey = key;
       listEl.innerHTML = items.length
         ? items.map((x) =>
-          `<button class="row-item${x.e.id === selected ? ' sel' : ''}" data-id="${x.e.id}">${glyph(x.e.type)}<span class="n">${x.e.name}</span><span class="dist"></span></button>`,
+          `<button class="row-item${x.e.id === selected ? ' sel' : ''}" data-id="${x.e.id}">${glyph(x.e)}<span class="n">${x.e.name}</span><span class="dist"></span></button>`,
         ).join('')
         : `<div class="empty">Рядом ничего нет. Откройте «Система» и выберите, куда варпнуть.</div>`;
     }
@@ -47,27 +48,36 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void,
     const e = selected ? world.byId[selected] : undefined;
     if (!e) {
       $('selName').innerHTML = 'Ничего не выбрано'; $('selHint').textContent = 'Выберите объект в обзоре или на экране.';
-      $('chips').innerHTML = ''; actionsKey = ''; return;
+      $('chips').innerHTML = ''; $('selHp').hidden = true; actionsKey = ''; return;
     }
     const d = dist(e);
     const warpable = canWarpTo(world, player, e);
     const near = d <= GRID_RANGE;
     $('selName').innerHTML = `<span>${e.name}</span><small>${fmtDist(d)}</small>`;
-    const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp;
+    const hp = $('selHp');
+    hp.hidden = e.type !== 'ship';
+    if (e.type === 'ship') {
+      $('selHpText').textContent = Math.ceil(e.structure) + ' / ' + e.hull.structure;
+      $('selHpBar').style.width = ((100 * e.structure) / e.hull.structure).toFixed(1) + '%';
+    }
+    const hostile = isHostile(e), attacking = player.attack === e.id;
+    const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp + '|' + attacking;
     if (key === actionsKey) return;
     actionsKey = key;
-    const chips: [Order['type'], number, string, boolean?][] = [];
+    // [приказ, значение, подпись, класс кнопки]
+    const chips: [Order['type'] | 'attack' | 'ceasefire', number, string, string?][] = [];
     if (player.warp) {
       $('selHint').textContent = TYPE_NAME[e.type] + '. В варпе приказы недоступны.';
     } else {
-      $('selHint').textContent = TYPE_NAME[e.type] + (warpable ? '. Можно варпнуть.' : near ? '. В пределах манёвра.' : '. Слишком далеко для манёвра.');
-      if (warpable) chips.push(['warp', 0, 'Варп на 0 км', true], ['warp', 10e3, 'на 10 км', true], ['warp', 50e3, 'на 50 км', true]);
+      $('selHint').textContent = (hostile ? 'Враг' : TYPE_NAME[e.type]) + (warpable ? '. Можно варпнуть.' : near ? '. В пределах манёвра.' : '. Слишком далеко для манёвра.');
+      if (hostile) chips.push(attacking ? ['ceasefire', 0, 'Прекратить огонь', 'attack'] : ['attack', 0, 'Атаковать', 'attack']);
+      if (warpable) chips.push(['warp', 0, 'Варп на 0 км', 'primary'], ['warp', 10e3, 'на 10 км', 'primary'], ['warp', 50e3, 'на 50 км', 'primary']);
       if (near) {
         chips.push(['approach', 0, 'Сблизиться'], ['orbit', 5e3, 'Орбита 5 км'], ['orbit', 15e3, 'Орбита 15 км'],
           ['keep', 10e3, 'Держать 10 км'], ['keep', 30e3, 'Держать 30 км']);
       }
     }
-    $('chips').innerHTML = chips.map((c) => `<button class="btn${c[3] ? ' primary' : ''}" data-o="${c[0]}" data-v="${c[1]}">${c[2]}</button>`).join('');
+    $('chips').innerHTML = chips.map((c) => `<button class="btn${c[3] ? ' ' + c[3] : ''}" data-o="${c[0]}" data-v="${c[1]}">${c[2]}</button>`).join('');
   }
 
   function select(id: string) { selected = id; actionsKey = ''; listKey = ''; renderActions(); renderList(); onSelect(); }
@@ -82,6 +92,11 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void,
 
   $('chips').addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest<HTMLElement>('button'); if (!b || !selected) return;
+    if (b.dataset.o === 'attack' || b.dataset.o === 'ceasefire') {
+      if (!setAttack(world, player, b.dataset.o === 'attack' ? selected : null)) toast(player.warp ? 'В варпе турели не стреляют' : 'Цель недоступна');
+      renderActions();
+      return;
+    }
     const type = b.dataset.o as Order['type'], v = Number(b.dataset.v);
     const order: Order = type === 'warp' ? { type, target: selected, dist: v }
       : type === 'approach' ? { type, target: selected }

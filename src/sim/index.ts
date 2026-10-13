@@ -1,3 +1,4 @@
+export * from './combat';
 export * from './constants';
 export * from './hulls';
 export * from './math';
@@ -5,6 +6,7 @@ export * from './measure';
 export * from './rng';
 export * from './ship';
 export * from './step';
+export * from './turrets';
 export * from './types';
 export * from './warp';
 export * from './world';

@@ -13,6 +13,7 @@
   --warp:#5a44c4;
   --sel:rgba(44,100,190,.14);
   --chip:rgba(40,60,90,.08);
+  --hostile:#c2413a;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -26,6 +27,7 @@
     --warp:#b9a8ff;
     --sel:rgba(156,196,255,.15);
     --chip:rgba(156,196,255,.08);
+    --hostile:#ff7a6b;
   }
 }
 :root[data-theme="dark"]{
@@ -39,6 +41,7 @@
   --warp:#b9a8ff;
   --sel:rgba(156,196,255,.15);
   --chip:rgba(156,196,255,.08);
+  --hostile:#ff7a6b;
 }
 *,*::before,*::after{box-sizing:inherit}
 html,body{height:100%;margin:0;overflow:hidden}
@@ -81,12 +84,15 @@ body{
 #warpBox{display:none;font-size:12.5px;color:var(--dim)}
 #warpBox .meter i{background:var(--warp)}
 #status.warping #warpBox{display:block}
+#attackLine{display:none;font-size:13px;color:var(--hostile);margin-top:2px}
+#status.attacking #attackLine{display:block}
 .btn{appearance:none;border:1px solid var(--line);background:var(--chip);color:var(--text);
   font:inherit;font-size:14px;border-radius:9px;padding:9px 12px;min-height:40px;cursor:pointer;white-space:nowrap}
 .btn:active{background:var(--sel)}
 .btn:focus-visible,.row-item:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .btn.primary{border-color:color-mix(in srgb,var(--warp) 55%,transparent);color:var(--warp)}
 .btn.on{background:var(--sel);border-color:var(--accent);color:var(--accent)}
+.btn.attack{border-color:color-mix(in srgb,var(--hostile) 60%,transparent);color:var(--hostile)}
 #stopBtn{margin-top:8px;width:100%}
 #gear{pointer-events:auto;width:44px;height:44px;padding:0;font-size:19px;display:grid;place-items:center;border-radius:12px;
   background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
@@ -99,6 +105,11 @@ body{
 #selName{font-weight:600;font-size:15px;display:flex;justify-content:space-between;gap:10px}
 #selName small{font-weight:400;color:var(--dim);font-size:13px}
 #selHint{color:var(--dim);font-size:13px;margin-top:2px}
+.hp{margin-top:6px;font-size:12.5px;color:var(--dim)}
+.hp[hidden]{display:none}
+.hp .row{display:flex;justify-content:space-between}
+.hp .meter{margin-top:4px}
+.hp .meter i{background:var(--hostile)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:7px 0 2px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .tabs{display:flex;gap:4px;padding:8px 12px 4px}
