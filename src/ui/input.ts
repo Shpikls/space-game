@@ -6,7 +6,7 @@ import type { PlayerWorld } from '../sim/types';
  * Управление пальцем и мышью: тянуть — вращать камеру, щипок или колесо — масштаб,
  * двойной тап по пространству — лететь в ту сторону.
  */
-export function attachInput(canvas: HTMLCanvasElement, world: PlayerWorld, view: SpaceView, toast: (msg: string) => void, hideHint: () => void) {
+export function attachInput(canvas: HTMLCanvasElement, world: PlayerWorld, view: SpaceView, toast: (msg: string) => void) {
   const player = world.player, cam = view.cam;
   const pointers = new Map<number, { x: number; y: number }>();
   let pinch: number | null = null;
@@ -56,6 +56,5 @@ export function attachInput(canvas: HTMLCanvasElement, world: PlayerWorld, view:
     if (!issueOrder(world, player, { type: 'dir', yaw })) { toast('Варп нельзя прервать'); return; }
     const rp = document.createElement('div'); rp.className = 'ripple'; rp.style.left = x + 'px'; rp.style.top = y + 'px';
     document.body.appendChild(rp); setTimeout(() => rp.remove(), 700);
-    hideHint();
   }
 }

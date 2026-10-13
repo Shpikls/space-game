@@ -7,8 +7,6 @@ export interface Hud {
   /** карточка состояния вверху: корпус, скорость, приказ, выравнивание, варп */
   update(): void;
   toast(msg: string): void;
-  /** убрать подсказку для новичка (после первого действия или через 9 с) */
-  hideHint(): void;
   /** показать всплывающие сообщения о событиях симуляции */
   handleEvents(events: SimEvent[]): void;
 }
@@ -73,12 +71,6 @@ export function createHud(world: PlayerWorld): Hud {
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
   }
 
-  let hintHidden = false;
-  function hideHint() {
-    if (hintHidden) return;
-    hintHidden = true; $('hint').style.opacity = '0'; setTimeout(() => $('hint').remove(), 700);
-  }
-  setTimeout(hideHint, 9000);
 
   function handleEvents(events: SimEvent[]) {
     for (const e of events) {
@@ -89,5 +81,5 @@ export function createHud(world: PlayerWorld): Hud {
     }
   }
 
-  return { update, toast, hideHint, handleEvents };
+  return { update, toast, handleEvents };
 }

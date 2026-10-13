@@ -17,10 +17,10 @@ world.timeScale = scenario.timeScale;
 const canvas = $<HTMLCanvasElement>('scene');
 const view = createSpaceView(canvas, world, world.player);
 const hud = createHud(world);
-const overview = createOverview(world, hud.toast, hud.hideHint);
+const overview = createOverview(world, hud.toast);
 const updateLabels = createLabels(world, view.project, overview.selected, overview.select);
 const debug = createDebug(world, view, overview.invalidate);
-attachInput(canvas, world, view, hud.toast, hud.hideHint);
+attachInput(canvas, world, view, hud.toast);
 if (scenario.debug) debug.open(true);
 
 let last = performance.now(), slow = 0;
