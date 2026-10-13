@@ -4,7 +4,7 @@ import { weaponRange } from '../sim/combat';
 import { rng } from '../sim/rng';
 import type { Ship, SimEvent, Vec2, World } from '../sim/types';
 import { buildObjectMesh, buildShip, type ShipMeshData } from './meshes';
-import { createShotFx, type P3 } from './shots';
+import { createShotFx, type Locate, type P3 } from './shots';
 import { glowTexture } from './textures';
 
 // Прототип рисовался на three.js r128. Чтобы картинка не поменялась, возвращаем его правила:
@@ -85,20 +85,29 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   const BOOM_LIFE = 1.6;
   const shots = createShotFx(scene);
   const tmpMuzzle = new THREE.Vector3();
-  /** Откуда вылетает снаряд: конец ствола (по последнему кадру), иначе центр корабля. */
-  function muzzleOf(shipId: string, turret: number, center: Vec2): P3 {
-    const m = shipMeshes.get(shipId), muzzle = m && (m.userData as ShipMeshData).muzzles[turret];
-    if (!m || !muzzle) return { x: center.x, y: 0, z: center.z };
-    muzzle.getWorldPosition(tmpMuzzle).sub(m.position);
-    return { x: center.x + tmpMuzzle.x, y: tmpMuzzle.y, z: center.z + tmpMuzzle.z };
-  }
+  // Где сейчас концы стволов и корабли, в мировых метрах. Сцена хранит меши относительно игрока — прибавляем его позицию
+  const locate: Locate = {
+    muzzle(shipId, turret) {
+      const s = world.byId[shipId], m = shipMeshes.get(shipId);
+      if (!s || s.type !== 'ship' || !m) return null;
+      const muzzle = (m.userData as ShipMeshData).muzzles[turret];
+      if (!muzzle) return { x: s.pos.x, y: 0, z: s.pos.z };
+      muzzle.getWorldPosition(tmpMuzzle);
+      return { x: tmpMuzzle.x + player.pos.x, y: tmpMuzzle.y, z: tmpMuzzle.z + player.pos.z };
+    },
+    ship(id) {
+      const s = world.byId[id];
+      return s && s.type === 'ship' ? { x: s.pos.x, y: 0, z: s.pos.z } : null;
+    },
+  };
   function handleEvents(events: SimEvent[]) {
     for (const e of events) {
       if (e.type === 'shot') {
         // попадаем не точно в центр, а куда-то в корпус цели
         const t = world.byId[e.target], size = t?.type === 'ship' ? t.hull.size : 40;
         const j = () => (Math.random() - 0.5) * size * 0.5;
-        shots.spawn(muzzleOf(e.ship, e.turret, e.from), { x: e.to.x + j(), y: j() * 0.3, z: e.to.z + j() });
+        const from: P3 = locate.muzzle(e.ship, e.turret) ?? { x: e.from.x, y: 0, z: e.from.z };
+        shots.spawn({ shooter: e.ship, turret: e.turret, target: e.target, from, to: { x: e.to.x, y: 0, z: e.to.z }, hit: { x: j(), y: j() * 0.3, z: j() } });
         continue;
       }
       if (e.type !== 'destroyed') continue;
@@ -175,8 +184,9 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
       glow.scale.setScalar(L * (0.2 + 0.55 * f));
       glow.material.opacity = 0.35 + 0.65 * f;
       turrets.forEach((t, i) => { t.rotation.y = s.turrets[i]?.aim ?? 0; });
+      m.updateMatrixWorld(true); // стволы — уже в позиции этого кадра, эффекты выстрелов берут их отсюда
     }
-    shots.update(dt, p);
+    shots.update(dt, p, locate);
     const range = weaponRange(player);
     rangeRing.visible = !!player.attack && range > 0 && !player.warp;
     rangeRing.scale.setScalar(range);
