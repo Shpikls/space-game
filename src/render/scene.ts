@@ -1,0 +1,188 @@
+import * as THREE from 'three';
+import { rng } from '../sim/rng';
+import type { Ship, World } from '../sim/types';
+import { buildObjectMesh, buildShip, type ShipMeshData } from './meshes';
+
+// Прототип рисовался на three.js r128. Чтобы картинка не поменялась, возвращаем его правила:
+// цвета без перевода из sRGB в линейное пространство и без такого же перевода на выходе.
+THREE.ColorManagement.enabled = false;
+
+/** Камера летает вокруг корабля игрока: поворот, наклон, расстояние. */
+export interface OrbitCam {
+  yaw: number;
+  pitch: number;
+  dist: number;
+}
+
+export interface SpaceView {
+  cam: OrbitCam;
+  /** допустимое расстояние камеры до корабля, м */
+  camLimits(): [number, number];
+  /** перестроить меш корабля (после смены корпуса) */
+  rebuildShipMesh(s: Ship): void;
+  /** точка на экране → курс в плоскости полёта (null — направление не определено) */
+  yawAt(clientX: number, clientY: number): number | null;
+  /** позиция относительно игрока → точка на экране (null — за камерой) */
+  project(rx: number, rz: number): { x: number; y: number } | null;
+  /** кадр: расставить меши относительно игрока и нарисовать. Возвращает силу эффекта варпа 0…1. */
+  render(dt: number): number;
+}
+
+export function createSpaceView(canvas: HTMLCanvasElement, world: World, player: Ship): SpaceView {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+  renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x02040a);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.5, 2e14);
+  // В r128 яркость источников умножалась на π внутри шейдера, а свет звезды не ослабевал с расстоянием
+  scene.add(new THREE.AmbientLight(0x6b7f99, 0.2 * Math.PI));
+  const sunLight = new THREE.PointLight(0xfff0dc, 1.65 * Math.PI, 0, 0);
+  scene.add(sunLight);
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize); resize();
+
+  scene.add(buildStars());
+
+  // Меши объектов мира
+  const meshes = new Map<string, THREE.Object3D>();
+  for (const o of world.objects) {
+    const m = buildObjectMesh(o);
+    if (m) { scene.add(m); meshes.set(o.id, m); }
+  }
+  const shipMeshes = new Map<string, THREE.Group>();
+  function rebuildShipMesh(s: Ship) {
+    const old = shipMeshes.get(s.id); if (old) scene.remove(old);
+    const m = buildShip(s.hull, s.faction === 'player' ? 0xa9b8c8 : 0xc4a27e);
+    scene.add(m); shipMeshes.set(s.id, m);
+  }
+  world.ships.forEach(rebuildShipMesh);
+
+  const tunnel = createTunnel();
+  scene.add(tunnel.lines);
+
+  const cam: OrbitCam = { yaw: -2.5, pitch: 0.3, dist: player.hull.size * 7 };
+  function placeCamera() {
+    const cp = Math.cos(cam.pitch);
+    camera.position.set(Math.sin(cam.yaw) * cp * cam.dist, Math.sin(cam.pitch) * cam.dist, Math.cos(cam.yaw) * cp * cam.dist);
+    camera.lookAt(0, 0, 0);
+  }
+
+  const raycaster = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  function yawAt(x: number, y: number): number | null {
+    const ndc = new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    const hit = new THREE.Vector3();
+    let dx: number, dz: number;
+    if (raycaster.ray.intersectPlane(plane, hit)) { dx = hit.x; dz = hit.z; }
+    else { dx = raycaster.ray.direction.x; dz = raycaster.ray.direction.z; }
+    if (Math.hypot(dx, dz) < 1e-6) return null;
+    return Math.atan2(dx, dz);
+  }
+
+  const tmpV = new THREE.Vector3();
+  function project(rx: number, rz: number) {
+    tmpV.set(rx, 0, rz).project(camera);
+    if (tmpV.z > 1 || tmpV.z < -1) return null;
+    return { x: ((tmpV.x + 1) / 2) * window.innerWidth, y: ((1 - tmpV.y) / 2) * window.innerHeight };
+  }
+
+  function render(dt: number): number {
+    // Всё рисуется относительно корабля игрока (floating origin): так не теряется точность на расстояниях в а. е.
+    const p = player.pos;
+    for (const o of world.objects) {
+      const m = meshes.get(o.id); if (!m) continue;
+      const rx = o.pos.x - p.x, rz = o.pos.z - p.z;
+      if (o.local && !o.celestial) { m.visible = Math.hypot(rx, rz) < 3e6; if (!m.visible) continue; }
+      m.position.set(rx, 0, rz);
+      if (m.userData.spin) (m.userData.spin as THREE.Object3D).rotation.y += dt * 0.004;
+    }
+    const star = world.byId.star!;
+    sunLight.position.set(star.pos.x - p.x, 0, star.pos.z - p.z);
+    for (const s of world.ships) {
+      const m = shipMeshes.get(s.id)!;
+      const rx = s.pos.x - p.x, rz = s.pos.z - p.z;
+      m.visible = Math.hypot(rx, rz) < 3e6; if (!m.visible) continue;
+      m.position.set(rx, 0, rz); m.rotation.y = s.yaw;
+      const f = s.warp ? 1 : Math.min(1, s.speed / s.hull.maxSpeed);
+      const { glow, L } = m.userData as ShipMeshData;
+      glow.scale.setScalar(L * (0.2 + 0.55 * f));
+      glow.material.opacity = 0.35 + 0.65 * f;
+    }
+
+    // Интенсивность варпа: логарифм отношения скорости к обычной
+    let wi = 0;
+    if (player.warp) wi = Math.max(0, Math.min(1, Math.log10(Math.max(1, player.warp.v / player.hull.maxSpeed)) / 7));
+    tunnel.update(dt, wi, cam.dist, player.yaw);
+    const fov = 60 + wi * 14;
+    if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
+
+    placeCamera();
+    renderer.render(scene, camera);
+    return wi;
+  }
+
+  return {
+    cam,
+    camLimits: () => [player.hull.size * 1.6, 4e6],
+    rebuildShipMesh,
+    yawAt,
+    project,
+    render,
+  };
+}
+
+/** Звёзды с полосой Млечного пути. */
+function buildStars(): THREE.Points {
+  const r = rng(99), n = 4200, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), R = 8e13;
+  const tilt = 0.5;
+  for (let i = 0; i < n; i++) {
+    let x: number, y: number, z: number;
+    if (i < n * 0.45) {
+      const lon = r() * Math.PI * 2, lat = (r() + r() + r() - 1.5) * 0.18;
+      x = Math.cos(lat) * Math.cos(lon); y = Math.sin(lat); z = Math.cos(lat) * Math.sin(lon);
+      const y2 = y * Math.cos(tilt) - z * Math.sin(tilt), z2 = y * Math.sin(tilt) + z * Math.cos(tilt); y = y2; z = z2;
+    } else {
+      const u = r() * 2 - 1, t = r() * Math.PI * 2, q = Math.sqrt(1 - u * u);
+      x = q * Math.cos(t); y = u; z = q * Math.sin(t);
+    }
+    pos.set([x * R, y * R, z * R], i * 3);
+    const b = 0.45 + r() * 0.55, warm = r();
+    col.set([b * (warm > 0.8 ? 1 : 0.85), b * 0.9, b * (warm < 0.3 ? 1 : 0.86)], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return new THREE.Points(g, new THREE.PointsMaterial({ size: 1.7, sizeAttenuation: false, vertexColors: true, depthWrite: false }));
+}
+
+/** Тоннель варпа: штрихи, летящие навстречу вокруг корабля. */
+function createTunnel() {
+  const TUN = 520;
+  const tunPos = new Float32Array(TUN * 6), tunSeed: [number, number, number, number][] = [];
+  const r = rng(3);
+  for (let i = 0; i < TUN; i++) {
+    const a = r() * Math.PI * 2, rad = 0.5 + r() * 2.4;
+    tunSeed.push([Math.cos(a) * rad, Math.sin(a) * rad, r() * 8 - 4, 0.6 + r() * 0.8]);
+  }
+  const tunGeo = new THREE.BufferGeometry(); tunGeo.setAttribute('position', new THREE.BufferAttribute(tunPos, 3));
+  const tunMat = new THREE.LineBasicMaterial({ color: 0xb8c8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const lines = new THREE.LineSegments(tunGeo, tunMat); lines.frustumCulled = false;
+
+  function update(dt: number, wi: number, scale: number, yaw: number) {
+    tunMat.opacity = wi * 0.85;
+    if (wi <= 0) { lines.visible = false; return; }
+    const len = 0.04 + wi * 1.1, adv = dt * (1 + wi * 14);
+    for (let i = 0; i < TUN; i++) {
+      const t = tunSeed[i]!; t[2] -= adv * t[3]; if (t[2] < -4) t[2] += 8;
+      tunPos.set([t[0], t[1], t[2], t[0], t[1], t[2] + len * t[3]], i * 6);
+    }
+    tunGeo.attributes.position!.needsUpdate = true;
+    lines.scale.setScalar(scale); lines.rotation.y = yaw; lines.visible = true;
+  }
+  return { lines, update };
+}

@@ -1,12 +1,70 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Космическая игра</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ксанта: полёт и варп</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="veil"></div>
+<div id="labels"></div>
+
+<div class="hud">
+  <div id="status" class="card">
+    <div class="row"><span id="hullName"></span><span id="speed"></span></div>
+    <div id="state">Стоп</div>
+    <div id="bigSpeed"></div>
+    <div id="alignBox">
+      <div class="row"><span>Курс</span><span id="alignAngle"></span></div>
+      <div class="meter"><i id="alignAngleBar"></i></div>
+      <div class="row" style="margin-top:5px"><span>Скорость до 70%</span><span id="alignSpeed"></span></div>
+      <div class="meter"><i id="alignSpeedBar"></i></div>
+    </div>
+    <div id="warpBox">
+      <div class="row" style="margin-top:4px"><span id="warpTarget"></span><span id="warpLeft"></span></div>
+      <div class="meter"><i id="warpBar"></i></div>
+    </div>
+    <button id="stopBtn" class="btn">Стоп</button>
+  </div>
+  <button id="gear" class="btn" aria-label="Отладка">⚙</button>
+</div>
+
+<div id="toast" class="card"></div>
+<div id="hint" class="card">Объекты — в обзоре внизу. Двойной тап по пространству: лететь в ту сторону. Камера вращается пальцем.</div>
+
+<div id="sheet" class="card">
+  <div id="handle" role="button" aria-label="Свернуть обзор" tabindex="0"><span></span></div>
+  <div id="actions">
+    <div id="selName">Ничего не выбрано</div>
+    <div id="selHint">Выберите объект в обзоре или на экране.</div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-tab="system">Система</button>
+    <button class="tab" data-tab="near">Рядом</button>
+  </div>
+  <div id="list"></div>
+</div>
+
+<aside id="debug" aria-label="Отладка">
+  <h2>Отладка <button class="btn" id="debugClose">Закрыть</button></h2>
+  <h3>Корпус</h3>
+  <div class="seg" id="hullSeg"></div>
+  <h3>Скорость времени</h3>
+  <div class="seg" id="timeSeg"></div>
+  <h3>Варп</h3>
+  <div class="seg"><button class="btn" id="instantBtn">Мгновенный варп</button></div>
+  <h3>Перенестись</h3>
+  <div class="seg" id="tpSeg"></div>
+  <h3>Характеристики корпуса</h3>
+  <table id="stats"></table>
+  <p>Параметры в адресе: ?ship=frigate|cruiser|battleship, ?at=station|belt|signal|p3, ?speed=4, ?debug=1</p>
+</aside>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
 </html>

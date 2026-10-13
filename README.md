@@ -1,6 +1,6 @@
 # Космическая игра
 
-Одиночная игра про космос, корабли, задания и добычу. TypeScript + React + Vite.
+Одиночная космическая песочница в браузере: полёт по приказам, варп по звёздной системе «Ксанта». TypeScript, three.js, Vite.
 
 ```bash
 npm install
@@ -8,5 +8,6 @@ npm run dev     # http://localhost:5173
 npm test
 ```
 
-Прототипы: `/prototype/world.html` (мир), `/prototype/combat.html` (бой) и `/prototype/flight.html` (управление полётом).
-Дизайн — `docs/design.md`, план — `docs/roadmap.md`, правила для Claude Code — `CLAUDE.md`.
+Сценарии в адресе: `?ship=frigate|cruiser|battleship`, `?at=station|belt|signal|p3`, `?speed=4`, `?debug=1`.
+
+Видение — `docs/VISION.md`, решения — `docs/DESIGN.md`, план — `ROADMAP.md`, правила для Claude Code — `CLAUDE.md`.

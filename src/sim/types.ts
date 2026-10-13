@@ -1,93 +1,119 @@
-import type { EnemyId, OreId, ShipId, SystemId, Weapon } from '../data/types';
-
-export interface Body {
+/** Позиция в плоскости XZ, метры. */
+export interface Vec2 {
   x: number;
-  y: number;
-  vx: number;
-  vy: number;
+  z: number;
 }
 
-export interface Ship extends Body {
-  angle: number;
-  maxSpeed: number;
-  accel: number;
-  sig: number;
+export type HullKey = 'frigate' | 'cruiser' | 'battleship';
+
+export interface Hull {
+  key: HullKey;
+  name: string;
+  /** кг */
+  mass: number;
+  /** длина корпуса, м */
   size: number;
-  hull: number;
-  hullMax: number;
-  armor: number;
-  armorMax: number;
-  dead: boolean;
+  /** тяга маршевых двигателей, Н */
+  thrust: number;
+  /** момент маневровых двигателей, Н·м */
+  torque: number;
+  /** предел скорости вращения, рад/с */
+  maxTurn: number;
+  /** м/с */
+  maxSpeed: number;
+  /** а. е./с */
+  warpSpeed: number;
+  /** темп экспоненциального разгона в варпе, 1/с */
+  warpAccel: number;
+  /** темп экспоненциального торможения в варпе, 1/с */
+  warpDecel: number;
 }
 
-export interface Turret {
-  w: Weapon;
-  cd: number;
+export type ObjectType = 'star' | 'planet' | 'station' | 'belt' | 'signal' | 'asteroid' | 'wreck';
+export type PlanetLook = 'rock' | 'terran' | 'gas' | 'ice' | 'red';
+
+export interface SpaceObject {
+  id: string;
+  name: string;
+  type: ObjectType;
+  pos: Vec2;
+  /** м; у поясов и сигналов 0 */
+  radius: number;
+  /** виден в обзоре «Система», к нему можно варпнуть */
+  celestial?: boolean;
+  /** мелкий объект, виден только вблизи */
+  local?: boolean;
+  /** на каком расстоянии от центра выходят из варпа при «варп на 0 км» */
+  warpIn?: number;
+  look?: PlanetLook;
+  seed?: number;
 }
 
-export interface Player extends Ship {
-  side: 'player';
-  ship: ShipId;
-  turrets: Turret[];
-  miners: { cd: number }[];
-  repair: boolean;
-  repairT: number;
-  cargoMax: number;
-  target: Enemy | null;
-  mineTarget: Asteroid | null;
-  armorBroken: boolean;
-}
+export type Order =
+  | { type: 'stop' }
+  | { type: 'dir'; yaw: number }
+  | { type: 'approach'; target: string }
+  | { type: 'orbit'; target: string; range: number; sign?: 1 | -1 }
+  | { type: 'keep'; target: string; range: number }
+  | { type: 'warp'; target: string; dist: number };
 
-export interface Enemy extends Ship {
-  side: 'enemy';
-  type: EnemyId;
-  label: string;
-  w: Weapon;
-  cd: number;
-  ai: 'keep' | 'orbit';
-  range: number;
-  dir: 1 | -1;
-}
-
-export interface Asteroid extends Body {
-  type: OreId;
-  ore: number;
-  oreMax: number;
-  verts: number[];
-  rot: number;
-}
-
-export type OrderType = 'orbit' | 'keep' | 'approach' | 'away' | 'stop' | 'mine';
-export interface Order {
-  type: OrderType;
+export interface Warp {
+  from: Vec2;
+  /** единичный вектор направления */
+  dx: number;
+  dz: number;
+  total: number;
+  traveled: number;
+  /** текущая скорость, м/с */
+  v: number;
+  phase: 'accel' | 'cruise' | 'decel';
+  target: string;
   dist: number;
+  startTime: number;
 }
 
-export type SceneKind = 'space' | 'station' | 'belt' | 'mission';
-
-export interface Scene {
-  kind: SceneKind;
-  sys: SystemId;
-  time: number;
-  player: Player;
-  enemies: Enemy[];
-  asteroids: Asteroid[];
-  cargo: Record<OreId, number>;
-  pirateT: number;
-  count: Partial<Record<EnemyId, number>>;
-  cargoFullReported: boolean;
+/** Ход выравнивания перед варпом: насколько курс далёк от цели и сколько набрано скорости. */
+export interface Align {
+  angle: number;
+  /** 1 = набрано 70% макс. скорости */
+  speedFrac: number;
 }
 
-/** События шага симуляции: их читают UI, журнал и отрисовка эффектов. */
+export type Faction = 'player' | 'npc' | 'test';
+
+export interface Ship {
+  id: string;
+  name: string;
+  type: 'ship';
+  faction: Faction;
+  hull: Hull;
+  pos: Vec2;
+  /** курс: нос смотрит в (sin yaw, cos yaw) */
+  yaw: number;
+  angVel: number;
+  speed: number;
+  order: Order;
+  warp: Warp | null;
+  align: Align | null;
+  radius: number;
+}
+
+export type Entity = SpaceObject | Ship;
+
 export type SimEvent =
-  | { type: 'shot'; x1: number; y1: number; x2: number; y2: number; color: string; kind: 'kinetic' | 'energy' | 'mine' }
-  | { type: 'hit'; target: Ship; amount: number; toPlayer: boolean; layer: 'armor' | 'hull' }
-  | { type: 'miss'; target: Ship }
-  | { type: 'kill'; enemy: Enemy }
-  | { type: 'armorBroken' }
-  | { type: 'repaired'; amount: number }
-  | { type: 'mined'; asteroid: Asteroid; amount: number }
-  | { type: 'asteroidDepleted' }
-  | { type: 'cargoFull' }
-  | { type: 'pirates'; count: number }
-  | { type: 'playerLost' };
+  | { type: 'warpStart'; ship: string; target: string }
+  | { type: 'warpEnd'; ship: string; target: string; duration: number };
+
+export interface World {
+  time: number;
+  timeScale: number;
+  objects: SpaceObject[];
+  ships: Ship[];
+  byId: Record<string, Entity | undefined>;
+  /** события накапливаются, пока их не заберёт интерфейс */
+  events: SimEvent[];
+  debug: { instantWarp: boolean };
+  player: Ship | null;
+}
+
+export type PlayerWorld = World & { player: Ship };

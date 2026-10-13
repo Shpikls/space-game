@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ксанта: полёт и варп</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --space:#02040a;
+  --glass:rgba(232,238,246,.86);
+  --glass-strong:rgba(242,246,251,.96);
+  --line:rgba(40,60,90,.2);
+  --text:#14202d;
+  --dim:#4d6176;
+  --accent:#2c64be;
+  --align:#9a610a;
+  --warp:#5a44c4;
+  --sel:rgba(44,100,190,.14);
+  --chip:rgba(40,60,90,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --glass:rgba(13,20,31,.78);
+    --glass-strong:rgba(17,26,40,.94);
+    --line:rgba(150,180,215,.16);
+    --text:#dbe6f2;
+    --dim:#8ea3b9;
+    --accent:#9cc4ff;
+    --align:#f0b860;
+    --warp:#b9a8ff;
+    --sel:rgba(156,196,255,.15);
+    --chip:rgba(156,196,255,.08);
+  }
+}
+:root[data-theme="dark"]{
+  --glass:rgba(13,20,31,.78);
+  --glass-strong:rgba(17,26,40,.94);
+  --line:rgba(150,180,215,.16);
+  --text:#dbe6f2;
+  --dim:#8ea3b9;
+  --accent:#9cc4ff;
+  --align:#f0b860;
+  --warp:#b9a8ff;
+  --sel:rgba(156,196,255,.15);
+  --chip:rgba(156,196,255,.08);
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;overflow:hidden}
+body{
+  background:var(--space);color:var(--text);
+  font-family:"IBM Plex Sans Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  font-size:15px;line-height:1.35;-webkit-tap-highlight-color:transparent;
+  font-variant-numeric:tabular-nums;
+}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#veil{position:fixed;inset:0;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,0) 35%,rgba(70,50,170,.35) 80%,rgba(20,10,60,.7) 100%)}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;display:flex;align-items:center;gap:5px;pointer-events:auto;
+  padding:6px;margin:-14px 0 0 -14px;color:rgba(220,232,245,.85);font-size:12.5px;white-space:nowrap;cursor:pointer;
+  text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.lbl .t{display:none}
+.lbl.named .t,.lbl.sel .t{display:inline}
+.lbl.sel{color:#fff}
+.lbl.sel svg{filter:drop-shadow(0 0 3px rgba(156,196,255,.9))}
+.lbl .d{color:rgba(190,205,222,.75);margin-left:4px}
+.lbl svg{flex:none}
+
+.hud{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px 0;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.card{pointer-events:auto;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid var(--line);border-radius:12px}
+#status{padding:9px 12px 10px;min-width:210px;max-width:calc(100% - 64px)}
+#status .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+#hullName{color:var(--dim);font-size:13px}
+#state{font-weight:600;font-size:16px;margin-top:1px}
+#speed{font-size:13px;color:var(--dim)}
+#bigSpeed{display:none;font-size:30px;font-weight:500;letter-spacing:.01em;color:var(--warp);line-height:1.1;margin-top:2px}
+#status.warping #bigSpeed{display:block}
+.meter{height:4px;border-radius:2px;background:var(--chip);margin-top:7px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--accent);border-radius:2px}
+#alignBox{display:none;margin-top:6px;font-size:12.5px;color:var(--dim)}
+#alignBox .meter i{background:var(--align)}
+#status.aligning #alignBox{display:block}
+#warpBox{display:none;font-size:12.5px;color:var(--dim)}
+#warpBox .meter i{background:var(--warp)}
+#status.warping #warpBox{display:block}
+.btn{appearance:none;border:1px solid var(--line);background:var(--chip);color:var(--text);
+  font:inherit;font-size:14px;border-radius:9px;padding:9px 12px;min-height:40px;cursor:pointer;white-space:nowrap}
+.btn:active{background:var(--sel)}
+.btn:focus-visible,.row-item:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn.primary{border-color:color-mix(in srgb,var(--warp) 55%,transparent);color:var(--warp)}
+.btn.on{background:var(--sel);border-color:var(--accent);color:var(--accent)}
+#stopBtn{margin-top:8px;width:100%}
+#gear{pointer-events:auto;width:44px;height:44px;padding:0;font-size:19px;display:grid;place-items:center;border-radius:12px;
+  background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+
+#sheet{position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:560px;
+  padding:0 0 env(safe-area-inset-bottom,0px);border-radius:16px 16px 0 0;border-bottom:none;background:var(--glass-strong)}
+#handle{display:flex;justify-content:center;padding:7px 0 2px;cursor:pointer}
+#handle span{width:38px;height:4px;border-radius:2px;background:var(--line)}
+#actions{padding:4px 12px 8px;border-bottom:1px solid var(--line)}
+#selName{font-weight:600;font-size:15px;display:flex;justify-content:space-between;gap:10px}
+#selName small{font-weight:400;color:var(--dim);font-size:13px}
+#selHint{color:var(--dim);font-size:13px;margin-top:2px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:7px 0 2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.tabs{display:flex;gap:4px;padding:8px 12px 4px}
+.tab{appearance:none;border:none;background:none;color:var(--dim);font:inherit;font-size:14px;padding:6px 10px;border-radius:8px;cursor:pointer}
+.tab.on{color:var(--text);background:var(--chip)}
+#list{max-height:30vh;overflow-y:auto;padding:0 6px 8px;overscroll-behavior:contain}
+#sheet.collapsed #list,#sheet.collapsed .tabs{display:none}
+.row-item{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:9px;cursor:pointer;width:100%;
+  appearance:none;border:none;background:none;color:var(--text);font:inherit;text-align:left}
+.row-item.sel{background:var(--sel)}
+.row-item .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-item .k{color:var(--dim);font-size:13px}
+.row-item .dist{color:var(--dim);font-size:14px;min-width:78px;text-align:right}
+.empty{color:var(--dim);font-size:13.5px;padding:10px 8px}
+
+#debug{position:fixed;top:0;right:0;bottom:0;width:min(360px,100%);padding:calc(env(safe-area-inset-top,0px) + 14px) 14px 14px;
+  overflow-y:auto;background:var(--glass-strong);border-left:1px solid var(--line);transform:translateX(105%);transition:transform .22s ease;z-index:5}
+#debug.open{transform:none}
+#debug h2{font-size:17px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+#debug h3{font-size:13px;font-weight:500;color:var(--dim);margin:14px 0 6px}
+#debug .seg{display:flex;flex-wrap:wrap;gap:6px}
+#stats{width:100%;border-collapse:collapse;font-size:13.5px}
+#stats td{padding:4px 0;border-bottom:1px solid var(--line)}
+#stats td:last-child{text-align:right}
+#debug p{font-size:12.5px;color:var(--dim);margin:10px 0 0}
+
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translate(-50%,-8px);opacity:0;
+  transition:opacity .25s,transform .25s;pointer-events:none;padding:8px 14px;font-size:14px;z-index:4;max-width:80%}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#status.hasToast{}
+#hint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 46vh);transform:translateX(-50%);
+  padding:8px 14px;font-size:13.5px;color:var(--dim);text-align:center;pointer-events:none;transition:opacity .6s;max-width:86%}
+.ripple{position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border:2px solid rgba(156,196,255,.85);border-radius:50%;
+  pointer-events:none;animation:rip .6s ease-out forwards}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.4);opacity:0}}
+@media (prefers-reduced-motion: reduce){.ripple{animation:none;opacity:0}#debug{transition:none}}
+@media (min-width:900px){#hint{bottom:calc(env(safe-area-inset-bottom,0px) + 40vh)}}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="veil"></div>
+<div id="labels"></div>
+
+<div class="hud">
+  <div id="status" class="card">
+    <div class="row"><span id="hullName"></span><span id="speed"></span></div>
+    <div id="state">Стоп</div>
+    <div id="bigSpeed"></div>
+    <div id="alignBox">
+      <div class="row"><span>Курс</span><span id="alignAngle"></span></div>
+      <div class="meter"><i id="alignAngleBar"></i></div>
+      <div class="row" style="margin-top:5px"><span>Скорость до 70%</span><span id="alignSpeed"></span></div>
+      <div class="meter"><i id="alignSpeedBar"></i></div>
+    </div>
+    <div id="warpBox">
+      <div class="row" style="margin-top:4px"><span id="warpTarget"></span><span id="warpLeft"></span></div>
+      <div class="meter"><i id="warpBar"></i></div>
+    </div>
+    <button id="stopBtn" class="btn">Стоп</button>
+  </div>
+  <button id="gear" class="btn" aria-label="Отладка">⚙</button>
+</div>
+
+<div id="toast" class="card"></div>
+<div id="hint" class="card">Объекты — в обзоре внизу. Двойной тап по пространству: лететь в ту сторону. Камера вращается пальцем.</div>
+
+<div id="sheet" class="card">
+  <div id="handle" role="button" aria-label="Свернуть обзор" tabindex="0"><span></span></div>
+  <div id="actions">
+    <div id="selName">Ничего не выбрано</div>
+    <div id="selHint">Выберите объект в обзоре или на экране.</div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-tab="system">Система</button>
+    <button class="tab" data-tab="near">Рядом</button>
+  </div>
+  <div id="list"></div>
+</div>
+
+<aside id="debug" aria-label="Отладка">
+  <h2>Отладка <button class="btn" id="debugClose">Закрыть</button></h2>
+  <h3>Корпус</h3>
+  <div class="seg" id="hullSeg"></div>
+  <h3>Скорость времени</h3>
+  <div class="seg" id="timeSeg"></div>
+  <h3>Варп</h3>
+  <div class="seg"><button class="btn" id="instantBtn">Мгновенный варп</button></div>
+  <h3>Перенестись</h3>
+  <div class="seg" id="tpSeg"></div>
+  <h3>Характеристики корпуса</h3>
+  <table id="stats"></table>
+  <p>Параметры в адресе: ?ship=frigate|cruiser|battleship, ?at=station|belt|signal|p3, ?speed=4, ?debug=1</p>
+</aside>
+
+<!-- ===== SIM: чистая логика, без three.js и DOM ===== -->
+<script id="sim">
+(function (root) {
+  'use strict';
+  const AU = 1.495978707e11;
+  const DEG = Math.PI / 180;
+  const GRID_RANGE = 300e3;      // «рядом»: объекты, с которыми можно маневрировать
+  const MIN_WARP = 150e3;        // ближе нельзя варпнуть
+  const ALIGN_FRACTION = 0.7;    // доля макс. скорости для входа в варп
+  const ALIGN_ANGLE = 2 * DEG;   // допуск по курсу
+
+  // Масса, размер и маневровые двигатели задают поворот: углов. ускорение = момент / инерция
+  const HULLS = {
+    frigate:    { key: 'frigate',    name: 'Фрегат',  mass: 1.4e6, size: 45,  thrust: 9.8e7,  torque: 2.9e8,   maxTurn: 80 * DEG, maxSpeed: 380, warpSpeed: 5, warpAccel: 5, warpDecel: 2 },
+    cruiser:    { key: 'cruiser',    name: 'Крейсер', mass: 1.2e7, size: 140, thrust: 2.64e8, torque: 6.2e9,   maxTurn: 30 * DEG, maxSpeed: 220, warpSpeed: 3, warpAccel: 3, warpDecel: 1.4 },
+    battleship: { key: 'battleship', name: 'Линкор',  mass: 9e7,   size: 420, thrust: 6.3e8,  torque: 1.15e11, maxTurn: 14 * DEG, maxSpeed: 110, warpSpeed: 2, warpAccel: 2, warpDecel: 1 }
+  };
+  const inertia = h => h.mass * h.size * h.size / 12;
+  const angAccel = h => h.torque / inertia(h);
+  const linAccel = h => h.thrust / h.mass;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function wrap(a) { a = (a + Math.PI) % (2 * Math.PI); if (a < 0) a += 2 * Math.PI; return a - Math.PI; }
+  const yawTo = (dx, dz) => Math.atan2(dx, dz); // нос смотрит в (sin yaw, cos yaw)
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function createWorld(opts) {
+    opts = opts || {};
+    const world = { time: 0, timeScale: 1, objects: [], ships: [], byId: {}, events: [], debug: { instantWarp: false } };
+    const r = rng(opts.seed || 7);
+    const add = o => { world.objects.push(o); world.byId[o.id] = o; return o; };
+    const polar = (au, deg) => ({ x: Math.sin(deg * DEG) * au * AU, z: Math.cos(deg * DEG) * au * AU });
+    const off = (p, d, deg) => ({ x: p.x + Math.sin(deg * DEG) * d, z: p.z + Math.cos(deg * DEG) * d });
+
+    add({ id: 'star', name: 'Ксанта', type: 'star', celestial: true, pos: { x: 0, z: 0 }, radius: 6.5e8, warpIn: 6.5e8 * 5 });
+    const planets = [
+      ['p1', 'Ксанта I', 'rock', 2.6, 40, 2.4e6],
+      ['p2', 'Ксанта II', 'terran', 6.8, 155, 6.4e6],
+      ['p3', 'Ксанта III', 'gas', 13.5, 262, 5.8e7],
+      ['p4', 'Ксанта IV', 'ice', 24, 330, 2.4e7],
+      ['p5', 'Ксанта V', 'red', 37, 95, 3.1e6]
+    ];
+    for (const [id, name, look, au, deg, rad] of planets) {
+      add({ id, name, type: 'planet', look, celestial: true, pos: polar(au, deg), radius: rad, warpIn: rad * 2.3 });
+    }
+    const p2 = world.byId.p2, p3 = world.byId.p3;
+    const station = add({ id: 'station', name: 'Станция «Причал Ксанты»', type: 'station', celestial: true, local: true,
+      pos: off(p2.pos, 2.6e7, 220), radius: 1600, warpIn: 2600 });
+    const belt = add({ id: 'belt', name: 'Пояс астероидов III-1', type: 'belt', celestial: true, pos: off(p3.pos, 1.7e8, 30), radius: 0, warpIn: 2500 });
+    const kinds = ['Железистый', 'Кремниевый', 'Ледяной', 'Углистый'];
+    for (let i = 0; i < 14; i++) {
+      add({ id: 'ast' + i, name: kinds[i % 4] + ' астероид ' + (i + 1), type: 'asteroid', local: true,
+        pos: off(belt.pos, 5e3 + r() * 24e3, r() * 360), radius: 250 + r() * 1100, seed: i + 11 });
+    }
+    const signal = add({ id: 'signal', name: 'Сигнал: обломки конвоя', type: 'signal', celestial: true, pos: polar(18.5, 205), radius: 0, warpIn: 3000 });
+    for (let i = 0; i < 6; i++) {
+      add({ id: 'wreck' + i, name: 'Обломки транспорта ' + (i + 1), type: 'wreck', local: true,
+        pos: off(signal.pos, 1.5e3 + r() * 7e3, r() * 360), radius: 90 + r() * 120, seed: i + 40 });
+    }
+
+    // Корабли NPC используют те же приказы, что и игрок
+    const npc1 = addShip(world, 'npc1', 'Патруль «Скат»', 'frigate', off(station.pos, 6.6e3, 90), 0, 'npc');
+    npc1.order = { type: 'orbit', target: 'station', range: 5e3 };
+    const npc2 = addShip(world, 'npc2', 'Грузовик «Ирбис»', 'cruiser', off(station.pos, 12.6e3, 250), 0, 'npc');
+    npc2.order = { type: 'orbit', target: 'station', range: 11e3 };
+
+    const player = addShip(world, 'player', 'Ваш корабль', HULLS[opts.hull] ? opts.hull : 'cruiser', { x: 0, z: 0 }, 0, 'player');
+    world.player = player;
+    teleport(world, player, opts.at || 'station');
+    return world;
+  }
+
+  function addShip(world, id, name, hullKey, pos, yaw, faction) {
+    const s = { id, name, type: 'ship', faction, hull: HULLS[hullKey], pos: { x: pos.x, z: pos.z }, yaw, angVel: 0, speed: 0,
+      order: { type: 'stop' }, warp: null, align: null, radius: 0 };
+    world.ships.push(s); world.byId[id] = s; return s;
+  }
+
+  function landingPoint(tgt, from, dist) {
+    let dx = from.x - tgt.pos.x, dz = from.z - tgt.pos.z;
+    let d = Math.hypot(dx, dz);
+    if (d < 1) { dx = 0; dz = 1; d = 1; }
+    const k = (tgt.warpIn + dist) / d;
+    return { x: tgt.pos.x + dx * k, z: tgt.pos.z + dz * k };
+  }
+
+  function teleport(world, s, id) {
+    const tgt = world.byId[id] || world.byId.station;
+    const extra = tgt.type === 'station' ? 5e3 : 0;
+    const p = landingPoint(tgt, { x: tgt.pos.x + 1e9, z: tgt.pos.z - 3e9 }, extra);
+    s.pos = p; s.warp = null; s.speed = 0; s.angVel = 0; s.order = { type: 'stop' }; s.align = null;
+    s.yaw = yawTo(tgt.pos.x - p.x, tgt.pos.z - p.z) + 1.1;
+  }
+
+  function surfaceDistance(a, b) {
+    const d = Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
+    return Math.max(0, d - (b.radius || 0));
+  }
+
+  function canWarpTo(world, s, tgt) {
+    return !!tgt && tgt.celestial && surfaceDistance(s, tgt) > MIN_WARP;
+  }
+
+  function issueOrder(world, s, order) {
+    if (s.warp) return false; // варп нельзя прервать
+    if (order.type === 'warp') {
+      const tgt = world.byId[order.target];
+      if (!canWarpTo(world, s, tgt)) return false;
+    }
+    s.order = order; s.align = null;
+    return true;
+  }
+
+  function steer(s, desiredYaw, dt) {
+    const h = s.hull, a = angAccel(h);
+    let targetW = 0;
+    if (desiredYaw !== null) {
+      const err = wrap(desiredYaw - s.yaw);
+      if (Math.abs(err) < 1e-4 && Math.abs(s.angVel) < a * dt) { s.yaw = wrap(desiredYaw); s.angVel = 0; return; }
+      targetW = Math.sign(err) * Math.min(h.maxTurn, Math.sqrt(2 * a * Math.abs(err) * 0.9));
+    }
+    const dw = clamp(targetW - s.angVel, -a * dt, a * dt);
+    s.angVel += dw;
+    s.yaw = wrap(s.yaw + s.angVel * dt);
+  }
+
+  function arriveSpeed(h, d) { return d <= 0 ? 0 : Math.min(h.maxSpeed, Math.sqrt(2 * linAccel(h) * d) * 0.85); }
+
+  function stepShip(world, s, dt) {
+    if (s.warp) { stepWarp(world, s, dt); return; }
+    const h = s.hull, o = s.order || { type: 'stop' };
+    let desiredYaw = null, desiredSpeed = 0;
+    const tObj = o.target ? world.byId[o.target] : null;
+    if (o.target && !tObj) { s.order = { type: 'stop' }; }
+    switch (o.type) {
+      case 'dir':
+        desiredYaw = o.yaw; desiredSpeed = h.maxSpeed; break;
+      case 'approach': {
+        const dx = tObj.pos.x - s.pos.x, dz = tObj.pos.z - s.pos.z;
+        const stopAt = (tObj.radius || 0) + Math.max(300, h.size * 3);
+        desiredYaw = yawTo(dx, dz); desiredSpeed = arriveSpeed(h, Math.hypot(dx, dz) - stopAt);
+        break;
+      }
+      case 'orbit': {
+        let rx = s.pos.x - tObj.pos.x, rz = s.pos.z - tObj.pos.z;
+        const d = Math.hypot(rx, rz) || 1; rx /= d; rz /= d;
+        if (o.sign === undefined) {
+          const hx = Math.sin(s.yaw), hz = Math.cos(s.yaw);
+          o.sign = (hx * -rz + hz * rx) >= 0 ? 1 : -1;
+        }
+        const tx = -rz * o.sign, tz = rx * o.sign;
+        const R = o.range + (tObj.radius || 0);
+        const c = clamp((R - d) / Math.max(R * 0.35, 1000), -2, 2);
+        desiredYaw = yawTo(tx + rx * c, tz + rz * c); desiredSpeed = h.maxSpeed;
+        break;
+      }
+      case 'keep': {
+        const dx = tObj.pos.x - s.pos.x, dz = tObj.pos.z - s.pos.z;
+        const d = Math.hypot(dx, dz), R = o.range + (tObj.radius || 0), e = d - R;
+        const tol = Math.max(200, R * 0.04);
+        if (e > tol) { desiredYaw = yawTo(dx, dz); desiredSpeed = arriveSpeed(h, e); }
+        else if (e < -tol) { desiredYaw = yawTo(-dx, -dz); desiredSpeed = arriveSpeed(h, -e); }
+        break;
+      }
+      case 'warp': {
+        const land = landingPoint(tObj, s.pos, o.dist);
+        desiredYaw = yawTo(land.x - s.pos.x, land.z - s.pos.z); desiredSpeed = h.maxSpeed;
+        const err = Math.abs(wrap(desiredYaw - s.yaw));
+        s.align = { angle: err, speedFrac: s.speed / (h.maxSpeed * ALIGN_FRACTION) };
+        if (err < ALIGN_ANGLE && s.speed >= ALIGN_FRACTION * h.maxSpeed - 1e-6) { startWarp(world, s, land, tObj, o.dist); return; }
+        break;
+      }
+    }
+    steer(s, desiredYaw, dt);
+    const a = linAccel(h);
+    s.speed += clamp(desiredSpeed - s.speed, -a * dt, a * dt);
+    s.pos.x += Math.sin(s.yaw) * s.speed * dt;
+    s.pos.z += Math.cos(s.yaw) * s.speed * dt;
+  }
+
+  function startWarp(world, s, land, tgt, dist) {
+    const dx = land.x - s.pos.x, dz = land.z - s.pos.z, total = Math.hypot(dx, dz);
+    s.align = null;
+    world.events.push({ type: 'warpStart', ship: s.id, target: tgt.id });
+    if (world.debug.instantWarp) {
+      s.pos = { x: land.x, z: land.z }; s.speed = 0; s.order = { type: 'stop' };
+      world.events.push({ type: 'warpEnd', ship: s.id, target: tgt.id, duration: 0 });
+      return;
+    }
+    s.yaw = yawTo(dx, dz); s.angVel = 0;
+    s.warp = { from: { x: s.pos.x, z: s.pos.z }, dx: dx / total, dz: dz / total, total, traveled: 0, v: s.speed,
+      phase: 'accel', target: tgt.id, dist, startTime: world.time };
+  }
+
+  function stepWarp(world, s, dt) {
+    const w = s.warp, h = s.hull;
+    const vmax = h.warpSpeed * AU, kA = h.warpAccel, kD = h.warpDecel;
+    const remain = w.total - w.traveled;
+    if (w.phase !== 'decel' && remain <= w.v / kD) w.phase = 'decel';
+    if (w.phase === 'decel') {
+      const nr = remain * Math.exp(-kD * dt);
+      w.traveled = w.total - nr; w.v = kD * nr;
+      if (w.v < h.maxSpeed * 0.5) {
+        s.pos = { x: w.from.x + w.dx * w.traveled, z: w.from.z + w.dz * w.traveled };
+        s.speed = w.v; s.warp = null; s.order = { type: 'stop' };
+        world.events.push({ type: 'warpEnd', ship: s.id, target: w.target, duration: world.time - w.startTime });
+        return;
+      }
+    } else {
+      let v1 = w.v * Math.exp(kA * dt);
+      if (v1 >= vmax) { v1 = vmax; w.phase = 'cruise'; }
+      w.traveled = Math.min(w.total, w.traveled + (w.v + v1) / 2 * dt);
+      w.v = v1;
+    }
+    s.speed = w.v;
+    s.pos = { x: w.from.x + w.dx * w.traveled, z: w.from.z + w.dz * w.traveled };
+  }
+
+  function step(world, dt) {
+    const n = Math.max(1, Math.ceil(dt / 0.02)), h = dt / n;
+    for (let i = 0; i < n; i++) {
+      for (const s of world.ships) stepShip(world, s, h);
+      world.time += h;
+    }
+  }
+
+  // Замер для отладки: выравнивание с разворотом turnDeg и варп на distAU
+  function measureWarp(hullKey, distAU, turnDeg) {
+    const w = { time: 0, objects: [], ships: [], byId: {}, events: [], debug: { instantWarp: false } };
+    const tgt = { id: 't', celestial: true, pos: { x: Math.sin(turnDeg * DEG) * distAU * AU, z: Math.cos(turnDeg * DEG) * distAU * AU }, radius: 0, warpIn: 0 };
+    w.objects.push(tgt); w.byId.t = tgt;
+    const s = addShip(w, 's', 's', hullKey, { x: 0, z: 0 }, 0, 'test');
+    s.order = { type: 'warp', target: 't', dist: 0 };
+    let align = null, total = null;
+    for (let i = 0; i < 20000 && total === null; i++) {
+      step(w, 0.02);
+      for (const e of w.events) {
+        if (e.type === 'warpStart' && align === null) align = w.time;
+        if (e.type === 'warpEnd') total = w.time;
+      }
+      w.events.length = 0;
+    }
+    return { align, warp: total - align, total };
+  }
+
+  root.XantaSim = { AU, DEG, HULLS, GRID_RANGE, MIN_WARP, ALIGN_FRACTION, inertia, angAccel, linAccel, rng,
+    createWorld, step, issueOrder, teleport, canWarpTo, surfaceDistance, measureWarp };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<!-- ===== /SIM ===== -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  const S = window.XantaSim, AU = S.AU;
+  const params = new URLSearchParams(location.search);
+  const world = S.createWorld({ hull: params.get('ship') || 'cruiser', at: params.get('at') || 'station' });
+  const player = world.player;
+  world.timeScale = [1, 4, 10].includes(Number(params.get('speed'))) ? Number(params.get('speed')) : 1;
+  const $ = id => document.getElementById(id);
+
+  // ---------- Форматирование ----------
+  const nf = new Intl.NumberFormat('ru-RU');
+  function fmtDist(m) {
+    if (m < 10e3) return nf.format(Math.round(m)) + ' м';
+    if (m < 0.1 * AU) return nf.format(Math.round(m / 1000)) + ' км';
+    return (m / AU).toFixed(1).replace('.', ',') + ' а. е.';
+  }
+  function fmtSpeed(v) {
+    if (v < 10e3) return nf.format(Math.round(v)) + ' м/с';
+    if (v < 0.01 * AU) return nf.format(Math.round(v / 1000)) + ' км/с';
+    return (v / AU).toFixed(2).replace('.', ',') + ' а. е./с';
+  }
+  const fmtSec = s => Math.round(s) + ' с';
+
+  // ---------- three.js ----------
+  const canvas = $('scene');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x02040a);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.5, 2e14);
+  scene.add(new THREE.AmbientLight(0x6b7f99, 0.2));
+  const sunLight = new THREE.PointLight(0xfff0dc, 1.65, 0);
+  scene.add(sunLight);
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize); resize();
+
+  // Звёзды с полосой Млечного пути
+  (function stars() {
+    const r = S.rng(99), n = 4200, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), R = 8e13;
+    const tilt = 0.5;
+    for (let i = 0; i < n; i++) {
+      let x, y, z;
+      if (i < n * 0.45) {
+        const lon = r() * Math.PI * 2, lat = (r() + r() + r() - 1.5) * 0.18;
+        x = Math.cos(lat) * Math.cos(lon); y = Math.sin(lat); z = Math.cos(lat) * Math.sin(lon);
+        const y2 = y * Math.cos(tilt) - z * Math.sin(tilt), z2 = y * Math.sin(tilt) + z * Math.cos(tilt); y = y2; z = z2;
+      } else {
+        const u = r() * 2 - 1, t = r() * Math.PI * 2, q = Math.sqrt(1 - u * u);
+        x = q * Math.cos(t); y = u; z = q * Math.sin(t);
+      }
+      pos.set([x * R, y * R, z * R], i * 3);
+      const b = 0.45 + r() * 0.55, warm = r();
+      col.set([b * (warm > 0.8 ? 1 : 0.85), b * 0.9, b * (warm < 0.3 ? 1 : 0.86)], i * 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 1.7, sizeAttenuation: false, vertexColors: true, depthWrite: false })));
+  })();
+
+  function glowTexture(inner, outer) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, inner); gr.addColorStop(0.25, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+  const engineTex = glowTexture('rgba(220,235,255,1)', 'rgba(110,160,255,.45)');
+
+  function planetTexture(look, seed) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+    const g = c.getContext('2d'), r = S.rng(seed);
+    const pal = {
+      rock: ['#6d6862', '#8a8279', '#4e4a46', '#9b938a'],
+      terran: ['#1d4a74', '#2e6b57', '#8b7a55', '#245d86'],
+      gas: ['#b98450', '#e2bd88', '#9c6338', '#f0dbb2', '#c99b66'],
+      ice: ['#9fc0d6', '#d6e8f2', '#7aa0bc', '#bcd6e6'],
+      red: ['#86402d', '#ad5a3c', '#5b2b20', '#c27352']
+    }[look];
+    if (look === 'gas') {
+      for (let y = 0; y < 256; y++) {
+        const t = y / 256;
+        const v = Math.sin(t * Math.PI * 13 + Math.sin(t * 41) * 1.2) + Math.sin(t * Math.PI * 33) * 0.45;
+        g.fillStyle = pal[Math.max(0, Math.min(pal.length - 1, Math.floor((v + 1.45) / 2.9 * pal.length)))];
+        g.fillRect(0, y, 512, 1);
+      }
+      g.globalAlpha = 0.35; g.fillStyle = '#8f4f2c';
+      g.beginPath(); g.ellipse(330, 168, 34, 14, 0, 0, Math.PI * 2); g.fill();
+    } else {
+      g.fillStyle = pal[0]; g.fillRect(0, 0, 512, 256);
+      for (let i = 0; i < 320; i++) {
+        g.globalAlpha = 0.18 + r() * 0.25; g.fillStyle = pal[1 + Math.floor(r() * (pal.length - 1))];
+        g.beginPath(); g.ellipse(r() * 512, r() * 256, 4 + r() * 42, 3 + r() * 22, r() * 3, 0, Math.PI * 2); g.fill();
+      }
+      if (look === 'rock' || look === 'red') {
+        for (let i = 0; i < 60; i++) {
+          const x = r() * 512, y = r() * 256, rad = 2 + r() * 9;
+          g.globalAlpha = 0.35; g.fillStyle = 'rgba(0,0,0,1)'; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+          g.globalAlpha = 0.2; g.strokeStyle = '#fff'; g.beginPath(); g.arc(x - 1, y - 1, rad, 0, 7); g.stroke();
+        }
+      }
+      if (look === 'terran' || look === 'ice') {
+        for (let i = 0; i < 140; i++) {
+          g.globalAlpha = 0.18 + r() * 0.3; g.fillStyle = '#f4f8fb';
+          g.beginPath(); g.ellipse(r() * 512, r() * 256, 10 + r() * 50, 2 + r() * 7, r() * 0.4, 0, Math.PI * 2); g.fill();
+        }
+      }
+    }
+    g.globalAlpha = 1;
+    const tex = new THREE.CanvasTexture(c);
+    return tex;
+  }
+
+  function ringTexture() {
+    const c = document.createElement('canvas'); c.width = c.height = 512;
+    const g = c.getContext('2d'), r = S.rng(5);
+    for (let rad = 256; rad > 0; rad -= 1) {
+      const t = rad / 256;
+      let a = 0;
+      if (t > 0.64 && t < 0.99) a = 0.25 + 0.45 * Math.abs(Math.sin(t * 90)) * (0.6 + r() * 0.4);
+      if (t > 0.8 && t < 0.83) a *= 0.15;
+      g.strokeStyle = 'rgba(226,200,160,' + a.toFixed(3) + ')';
+      g.beginPath(); g.arc(256, 256, rad, 0, Math.PI * 2); g.stroke();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
+  function rockGeometry(seed) {
+    const geo = new THREE.IcosahedronGeometry(1, 2), r = S.rng(seed), p = geo.attributes.position;
+    const bumps = []; for (let i = 0; i < 6; i++) bumps.push([r() * 2 - 1, r() * 2 - 1, r() * 2 - 1, 0.15 + r() * 0.3]);
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i).normalize();
+      let k = 0.85 + r() * 0.12;
+      for (const b of bumps) k += b[3] * Math.max(0, v.x * b[0] + v.y * b[1] + v.z * b[2]) * 0.35;
+      v.multiplyScalar(k); v.y *= 0.75; p.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function buildStation() {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8b97a6, metalness: 0.6, roughness: 0.45 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x3c4552, metalness: 0.5, roughness: 0.6 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1300, 110, 12, 72), mat); ring.rotation.x = Math.PI / 2; g.add(ring);
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(240, 320, 2000, 24), dark));
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(420, 240, 260, 24), mat); top.position.y = 1100; g.add(top);
+    for (let i = 0; i < 4; i++) {
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(2600, 70, 90), dark); sp.rotation.y = i * Math.PI / 4; g.add(sp);
+    }
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xffc27a });
+    for (let i = 0; i < 24; i++) {
+      const a = i / 24 * Math.PI * 2;
+      const l = new THREE.Mesh(new THREE.SphereGeometry(28, 8, 6), lampMat);
+      l.position.set(Math.cos(a) * 1300, 120, Math.sin(a) * 1300); g.add(l);
+    }
+    return g;
+  }
+
+  function buildWreck(seed) {
+    const g = new THREE.Group(), r = S.rng(seed);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4a4f57, metalness: 0.4, roughness: 0.75 });
+    for (let i = 0; i < 4; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.3 + r() * 0.9, 0.15 + r() * 0.35, 0.2 + r() * 0.6), mat);
+      m.position.set(r() - 0.5, (r() - 0.5) * 0.4, r() - 0.5); m.rotation.set(r() * 3, r() * 3, r() * 3); g.add(m);
+    }
+    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff8a3c }));
+    ember.position.set(0.1, 0.1, 0); g.add(ember);
+    return g;
+  }
+
+  function buildShip(h, tint) {
+    const g = new THREE.Group(), L = h.size;
+    const mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0.55, roughness: 0.38 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x2b323c, metalness: 0.5, roughness: 0.6 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(L * 0.07, L * 0.13, L * 0.72, 10), mat);
+    body.rotation.x = Math.PI / 2; g.add(body);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(L * 0.07, L * 0.26, 10), mat);
+    nose.rotation.x = Math.PI / 2; nose.position.z = L * 0.49; g.add(nose);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(L * 0.64, L * 0.025, L * 0.22), dark);
+    wing.position.z = -L * 0.16; g.add(wing);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(L * 0.02, L * 0.17, L * 0.22), dark);
+    fin.position.set(0, L * 0.09, -L * 0.24); g.add(fin);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: engineTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    glow.position.z = -L * 0.4; glow.scale.setScalar(L * 0.45); g.add(glow);
+    g.userData.glow = glow; g.userData.L = L;
+    return g;
+  }
+
+  // Меши объектов мира
+  const meshes = new Map();
+  for (const o of world.objects) {
+    let m;
+    if (o.type === 'star') {
+      m = new THREE.Group();
+      m.add(new THREE.Mesh(new THREE.SphereGeometry(o.radius, 48, 24), new THREE.MeshBasicMaterial({ color: 0xffe6bd })));
+      const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,236,200,1)', 'rgba(255,180,90,.35)'),
+        blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      gl.scale.setScalar(o.radius * 16); m.add(gl);
+    } else if (o.type === 'planet') {
+      m = new THREE.Group();
+      const sph = new THREE.Mesh(new THREE.SphereGeometry(o.radius, 64, 32),
+        new THREE.MeshStandardMaterial({ map: planetTexture(o.look, o.id.charCodeAt(1)), roughness: 1, metalness: 0 }));
+      sph.rotation.z = 0.25; m.add(sph); m.userData.spin = sph;
+      if (o.look === 'gas') {
+        const ring = new THREE.Mesh(new THREE.RingGeometry(o.radius * 1.35, o.radius * 2.2, 160),
+          new THREE.MeshStandardMaterial({ map: ringTexture(), transparent: true, side: THREE.DoubleSide, roughness: 1, depthWrite: false }));
+        ring.rotation.x = -Math.PI / 2 + 0.38; m.add(ring);
+      }
+    } else if (o.type === 'station') {
+      m = buildStation();
+    } else if (o.type === 'asteroid') {
+      m = new THREE.Mesh(rockGeometry(o.seed), new THREE.MeshStandardMaterial({ color: 0x7d7468, roughness: 0.95, flatShading: true }));
+      m.scale.setScalar(o.radius); m.rotation.set(o.seed, o.seed * 2, 0);
+    } else if (o.type === 'wreck') {
+      m = buildWreck(o.seed); m.scale.setScalar(o.radius * 2);
+    }
+    if (m) { scene.add(m); meshes.set(o.id, m); }
+  }
+  const shipMeshes = new Map();
+  function rebuildShipMesh(s) {
+    const old = shipMeshes.get(s.id); if (old) scene.remove(old);
+    const m = buildShip(s.hull, s.faction === 'player' ? 0xa9b8c8 : 0xc4a27e);
+    scene.add(m); shipMeshes.set(s.id, m);
+  }
+  world.ships.forEach(rebuildShipMesh);
+
+  // Тоннель варпа
+  const TUN = 520;
+  const tunPos = new Float32Array(TUN * 6), tunSeed = [];
+  (function () { const r = S.rng(3); for (let i = 0; i < TUN; i++) { const a = r() * Math.PI * 2, rad = 0.5 + r() * 2.4; tunSeed.push([Math.cos(a) * rad, Math.sin(a) * rad, r() * 8 - 4, 0.6 + r() * 0.8]); } })();
+  const tunGeo = new THREE.BufferGeometry(); tunGeo.setAttribute('position', new THREE.BufferAttribute(tunPos, 3));
+  const tunMat = new THREE.LineBasicMaterial({ color: 0xb8c8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const tunnel = new THREE.LineSegments(tunGeo, tunMat); tunnel.frustumCulled = false; scene.add(tunnel);
+
+  // ---------- Камера ----------
+  const cam = { yaw: -2.5, pitch: 0.3, dist: player.hull.size * 7 };
+  const camLimits = () => [player.hull.size * 1.6, 4e6];
+  function placeCamera() {
+    const cp = Math.cos(cam.pitch);
+    camera.position.set(Math.sin(cam.yaw) * cp * cam.dist, Math.sin(cam.pitch) * cam.dist, Math.cos(cam.yaw) * cp * cam.dist);
+    camera.lookAt(0, 0, 0);
+  }
+  const pointers = new Map();
+  let pinch = null, tapStart = null, lastTap = null;
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) tapStart = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+    else { tapStart = null; const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); }
+  });
+  canvas.addEventListener('pointermove', e => {
+    const p = pointers.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (pointers.size === 1) {
+      cam.yaw -= dx * 0.006; cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + dy * 0.006));
+      if (tapStart) tapStart.moved += Math.abs(dx) + Math.abs(dy);
+    } else if (pointers.size === 2 && pinch) {
+      const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      const [lo, hi] = camLimits(); cam.dist = Math.max(lo, Math.min(hi, cam.dist * pinch / d)); pinch = d;
+    }
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (tapStart && pointers.size === 0 && tapStart.moved < 10 && performance.now() - tapStart.t < 350) {
+      const now = performance.now();
+      if (lastTap && now - lastTap.t < 380 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
+        flyToward(e.clientX, e.clientY); lastTap = null;
+      } else lastTap = { x: e.clientX, y: e.clientY, t: now };
+    }
+    tapStart = null;
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const [lo, hi] = camLimits(); cam.dist = Math.max(lo, Math.min(hi, cam.dist * Math.exp(e.deltaY * 0.0012)));
+  }, { passive: false });
+  canvas.addEventListener('dblclick', e => e.preventDefault());
+
+  const raycaster = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  function flyToward(x, y) {
+    const ndc = new THREE.Vector2(x / window.innerWidth * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    const hit = new THREE.Vector3();
+    let dx, dz;
+    if (raycaster.ray.intersectPlane(plane, hit)) { dx = hit.x; dz = hit.z; }
+    else { dx = raycaster.ray.direction.x; dz = raycaster.ray.direction.z; }
+    if (Math.hypot(dx, dz) < 1e-6) return;
+    if (!S.issueOrder(world, player, { type: 'dir', yaw: Math.atan2(dx, dz) })) { toast('Варп нельзя прервать'); return; }
+    const rp = document.createElement('div'); rp.className = 'ripple'; rp.style.left = x + 'px'; rp.style.top = y + 'px';
+    document.body.appendChild(rp); setTimeout(() => rp.remove(), 700);
+    hideHint();
+  }
+
+  // ---------- Выбор и обзор ----------
+  let selected = null, tab = 'system';
+  const TYPE_NAME = { star: 'Звезда', planet: 'Планета', station: 'Станция', belt: 'Пояс астероидов', signal: 'Сигнал', asteroid: 'Астероид', wreck: 'Обломки', ship: 'Корабль' };
+  function glyph(type, size) {
+    size = size || 14;
+    const c = 'currentColor';
+    const body = {
+      star: `<circle cx="7" cy="7" r="4.5" fill="#f3c46e"/>`,
+      planet: `<circle cx="7" cy="7" r="5" fill="none" stroke="${c}" stroke-width="1.5"/>`,
+      station: `<rect x="2.5" y="2.5" width="9" height="9" fill="none" stroke="${c}" stroke-width="1.5"/>`,
+      belt: `<path d="M7 1.5 12.5 7 7 12.5 1.5 7Z" fill="none" stroke="${c}" stroke-width="1.5"/>`,
+      signal: `<path d="M7 2 12.5 12H1.5Z" fill="none" stroke="#e7b25e" stroke-width="1.5"/>`,
+      asteroid: `<path d="M7 3.5 10.5 7 7 10.5 3.5 7Z" fill="${c}" opacity=".75"/>`,
+      wreck: `<path d="M3.5 3.5 10.5 10.5M10.5 3.5 3.5 10.5" stroke="#d98a52" stroke-width="1.6"/>`,
+      ship: `<path d="M7 2 12 11.5H2Z" fill="none" stroke="#e3a87a" stroke-width="1.5"/>`
+    }[type];
+    return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" aria-hidden="true">${body}</svg>`;
+  }
+  function entities() {
+    return world.objects.concat(world.ships.filter(s => s !== player));
+  }
+  const dist = e => S.surfaceDistance(player, e);
+  function listFor(t) {
+    const all = entities().map(e => ({ e, d: dist(e) }));
+    const out = t === 'system' ? all.filter(x => x.e.celestial) : all.filter(x => x.d <= S.GRID_RANGE);
+    return out.sort((a, b) => a.d - b.d);
+  }
+  const listEl = $('list');
+  let listKey = '';
+  function renderList() {
+    const items = listFor(tab);
+    const key = tab + '|' + items.map(x => x.e.id).join(',') + '|' + (selected || '');
+    if (key !== listKey) {
+      listKey = key;
+      listEl.innerHTML = items.length ? items.map(x =>
+        `<button class="row-item${x.e.id === selected ? ' sel' : ''}" data-id="${x.e.id}">${glyph(x.e.type)}<span class="n">${x.e.name}</span><span class="dist"></span></button>`
+      ).join('') : `<div class="empty">Рядом ничего нет. Откройте «Система» и выберите, куда варпнуть.</div>`;
+    }
+    const rows = listEl.querySelectorAll('.row-item');
+    rows.forEach((row, i) => { row.lastChild.textContent = fmtDist(items[i].d); });
+  }
+  listEl.addEventListener('click', e => { const b = e.target.closest('.row-item'); if (b) select(b.dataset.id); });
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+    tab = b.dataset.tab; document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); listKey = ''; renderList();
+  }));
+  $('handle').addEventListener('click', () => $('sheet').classList.toggle('collapsed'));
+
+  function select(id) { selected = id; actionsKey = ''; listKey = ''; renderActions(); renderList(); hideHint(); }
+
+  let actionsKey = '';
+  function renderActions() {
+    const e = selected && world.byId[selected];
+    if (!e) {
+      $('selName').innerHTML = 'Ничего не выбрано'; $('selHint').textContent = 'Выберите объект в обзоре или на экране.';
+      $('chips').innerHTML = ''; actionsKey = ''; return;
+    }
+    const d = dist(e);
+    const warpable = S.canWarpTo(world, player, e);
+    const near = d <= S.GRID_RANGE;
+    $('selName').innerHTML = `<span>${e.name}</span><small>${fmtDist(d)}</small>`;
+    const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp;
+    if (key === actionsKey) return;
+    actionsKey = key;
+    const chips = [];
+    if (player.warp) {
+      $('selHint').textContent = TYPE_NAME[e.type] + '. В варпе приказы недоступны.';
+    } else {
+      $('selHint').textContent = TYPE_NAME[e.type] + (warpable ? '. Можно варпнуть.' : near ? '. В пределах манёвра.' : '. Слишком далеко для манёвра.');
+      if (warpable) {
+        chips.push(['warp', 0, 'Варп на 0 км', true], ['warp', 10e3, 'на 10 км', true], ['warp', 50e3, 'на 50 км', true]);
+      }
+      if (near) {
+        chips.push(['approach', 0, 'Сблизиться'], ['orbit', 5e3, 'Орбита 5 км'], ['orbit', 15e3, 'Орбита 15 км'],
+          ['keep', 10e3, 'Держать 10 км'], ['keep', 30e3, 'Держать 30 км']);
+      }
+    }
+    $('chips').innerHTML = chips.map(c => `<button class="btn${c[3] ? ' primary' : ''}" data-o="${c[0]}" data-v="${c[1]}">${c[2]}</button>`).join('');
+  }
+  $('chips').addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b || !selected) return;
+    const type = b.dataset.o, v = Number(b.dataset.v);
+    const order = type === 'warp' ? { type, target: selected, dist: v }
+      : type === 'approach' ? { type, target: selected } : { type, target: selected, range: v };
+    if (!S.issueOrder(world, player, order)) toast(player.warp ? 'Варп нельзя прервать' : 'Приказ недоступен');
+  });
+  $('stopBtn').addEventListener('click', () => { if (!S.issueOrder(world, player, { type: 'stop' })) toast('Варп нельзя прервать'); });
+
+  // ---------- Метки на экране ----------
+  const labelsEl = $('labels'), labels = new Map();
+  labelsEl.addEventListener('click', e => { const l = e.target.closest('.lbl'); if (l) select(l.dataset.id); });
+  const tmpV = new THREE.Vector3();
+  function updateLabels() {
+    const w = window.innerWidth, h = window.innerHeight, seen = new Set();
+    for (const e of entities()) {
+      const d = dist(e);
+      const show = e.celestial || d <= S.GRID_RANGE;
+      if (!show) continue;
+      tmpV.set(e.pos.x - player.pos.x, 0, e.pos.z - player.pos.z).project(camera);
+      if (tmpV.z > 1 || tmpV.z < -1) continue;
+      const x = (tmpV.x + 1) / 2 * w, y = (1 - tmpV.y) / 2 * h;
+      if (x < -40 || x > w + 40 || y < -40 || y > h + 40) continue;
+      seen.add(e.id);
+      let l = labels.get(e.id);
+      if (!l) {
+        l = document.createElement('div'); l.className = 'lbl'; l.dataset.id = e.id;
+        l.innerHTML = glyph(e.type, 16) + `<span class="t">${e.name}<span class="d"></span></span>`;
+        labelsEl.appendChild(l); labels.set(e.id, l);
+      }
+      l.style.display = '';
+      l.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+      l.classList.toggle('named', e.celestial && e.type !== 'station' || e.type === 'station' && d > S.GRID_RANGE);
+      l.classList.toggle('sel', e.id === selected);
+      if (e.id === selected) l.querySelector('.d').textContent = fmtDist(d);
+    }
+    for (const [id, l] of labels) if (!seen.has(id)) l.style.display = 'none';
+  }
+
+  // ---------- HUD ----------
+  function stateText() {
+    const s = player, o = s.order, t = o.target && world.byId[o.target];
+    if (s.warp) {
+      const ph = s.warp.phase;
+      return ph === 'accel' ? 'Варп: разгон' : ph === 'cruise' ? 'Варп' : 'Варп: торможение';
+    }
+    switch (o.type) {
+      case 'dir': return 'Полёт по курсу';
+      case 'approach': return 'Сближение: ' + t.name;
+      case 'orbit': return 'Орбита ' + o.range / 1000 + ' км: ' + t.name;
+      case 'keep': return 'Держу ' + o.range / 1000 + ' км: ' + t.name;
+      case 'warp': return 'Выравнивание на ' + t.name;
+      default: return s.speed > 1 ? 'Торможение' : 'Стоп';
+    }
+  }
+  const statusEl = $('status');
+  function updateHud() {
+    const s = player;
+    $('hullName').textContent = s.hull.name + (world.timeScale !== 1 ? ', время ×' + world.timeScale : '');
+    $('speed').textContent = s.warp ? '' : fmtSpeed(s.speed);
+    $('state').textContent = stateText();
+    statusEl.classList.toggle('aligning', !!s.align && s.order.type === 'warp' && !s.warp);
+    statusEl.classList.toggle('warping', !!s.warp);
+    if (s.align && !s.warp) {
+      const deg = s.align.angle / S.DEG;
+      $('alignAngle').textContent = deg < 2 ? 'на цели' : Math.round(deg) + '°';
+      $('alignAngleBar').style.width = (100 * Math.max(0, 1 - deg / 180)).toFixed(1) + '%';
+      const f = Math.min(1, s.align.speedFrac);
+      $('alignSpeed').textContent = Math.round(f * 100) + '%';
+      $('alignSpeedBar').style.width = (f * 100).toFixed(1) + '%';
+    }
+    if (s.warp) {
+      $('bigSpeed').textContent = fmtSpeed(s.warp.v);
+      $('warpTarget').textContent = world.byId[s.warp.target].name;
+      $('warpLeft').textContent = fmtDist(s.warp.total - s.warp.traveled);
+      $('warpBar').style.width = (100 * s.warp.traveled / s.warp.total).toFixed(2) + '%';
+    }
+    $('stopBtn').disabled = !!s.warp;
+    $('stopBtn').style.opacity = s.warp ? 0.4 : 1;
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+  let hintHidden = false;
+  function hideHint() { if (!hintHidden) { hintHidden = true; $('hint').style.opacity = 0; setTimeout(() => $('hint').remove(), 700); } }
+  setTimeout(hideHint, 9000);
+
+  function handleEvents() {
+    for (const e of world.events) {
+      if (e.ship !== 'player') continue;
+      if (e.type === 'warpStart') toast('Варп к «' + world.byId[e.target].name + '»');
+      if (e.type === 'warpEnd') toast('Прибыли к «' + world.byId[e.target].name + '»' + (e.duration ? ' за ' + fmtSec(e.duration) : ''));
+    }
+    world.events.length = 0;
+  }
+
+  // ---------- Отладка ----------
+  const dbg = $('debug');
+  function openDebug(v) { dbg.classList.toggle('open', v); if (v) renderDebug(); }
+  $('gear').addEventListener('click', () => openDebug(!dbg.classList.contains('open')));
+  $('debugClose').addEventListener('click', () => openDebug(false));
+  const measured = {};
+  function renderDebug() {
+    $('hullSeg').innerHTML = Object.values(S.HULLS).map(h => `<button class="btn${player.hull === h ? ' on' : ''}" data-h="${h.key}">${h.name}</button>`).join('');
+    $('timeSeg').innerHTML = [1, 4, 10].map(k => `<button class="btn${world.timeScale === k ? ' on' : ''}" data-k="${k}">×${k}</button>`).join('');
+    $('instantBtn').classList.toggle('on', world.debug.instantWarp);
+    $('tpSeg').innerHTML = [['station', 'Станция'], ['belt', 'Пояс III-1'], ['signal', 'Обломки'], ['p3', 'Ксанта III'], ['star', 'Звезда']]
+      .map(([id, n]) => `<button class="btn" data-tp="${id}">${n}</button>`).join('');
+    const h = player.hull;
+    const m = measured[h.key] || (measured[h.key] = { a90: S.measureWarp(h.key, 10, 90), a180: S.measureWarp(h.key, 10, 180), w30: S.measureWarp(h.key, 30, 0) });
+    const rows = [
+      ['Масса', nf.format(h.mass / 1000) + ' т'],
+      ['Длина корпуса', h.size + ' м'],
+      ['Момент маневровых', (h.torque / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' МН·м'],
+      ['Угловое ускорение', (S.angAccel(h) / S.DEG).toFixed(1).replace('.', ',') + ' °/с²'],
+      ['Предел поворота', Math.round(h.maxTurn / S.DEG) + ' °/с'],
+      ['Разгон', Math.round(S.linAccel(h)) + ' м/с²'],
+      ['Макс. скорость', h.maxSpeed + ' м/с'],
+      ['Скорость варпа', h.warpSpeed + ' а. е./с'],
+      ['Выравнивание, поворот 90°', m.a90.align.toFixed(1).replace('.', ',') + ' с'],
+      ['Выравнивание, поворот 180°', m.a180.align.toFixed(1).replace('.', ',') + ' с'],
+      ['Варп на 10 а. е.', fmtSec(m.a90.warp)],
+      ['Варп на 30 а. е.', fmtSec(m.w30.warp)]
+    ];
+    $('stats').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+  }
+  dbg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.h) {
+      player.hull = S.HULLS[b.dataset.h]; player.speed = Math.min(player.speed, player.hull.maxSpeed);
+      rebuildShipMesh(player); cam.dist = player.hull.size * 7;
+    } else if (b.dataset.k) world.timeScale = Number(b.dataset.k);
+    else if (b.id === 'instantBtn') world.debug.instantWarp = !world.debug.instantWarp;
+    else if (b.dataset.tp) { S.teleport(world, player, b.dataset.tp); actionsKey = ''; listKey = ''; }
+    else return;
+    renderDebug();
+  });
+  if (params.get('debug') === '1') openDebug(true);
+
+  // ---------- Цикл ----------
+  let last = performance.now(), slow = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    S.step(world, dt * world.timeScale);
+    handleEvents();
+
+    const p = player.pos;
+    for (const o of world.objects) {
+      const m = meshes.get(o.id); if (!m) continue;
+      const rx = o.pos.x - p.x, rz = o.pos.z - p.z;
+      if (o.local && !o.celestial) { m.visible = Math.hypot(rx, rz) < 3e6; if (!m.visible) continue; }
+      m.position.set(rx, 0, rz);
+      if (m.userData.spin) m.userData.spin.rotation.y += dt * 0.004;
+    }
+    const star = world.byId.star; sunLight.position.set(star.pos.x - p.x, 0, star.pos.z - p.z);
+    for (const s of world.ships) {
+      const m = shipMeshes.get(s.id);
+      const rx = s.pos.x - p.x, rz = s.pos.z - p.z;
+      m.visible = Math.hypot(rx, rz) < 3e6; if (!m.visible) continue;
+      m.position.set(rx, 0, rz); m.rotation.y = s.yaw;
+      const f = s.warp ? 1 : Math.min(1, s.speed / s.hull.maxSpeed);
+      m.userData.glow.scale.setScalar(m.userData.L * (0.2 + 0.55 * f));
+      m.userData.glow.material.opacity = 0.35 + 0.65 * f;
+    }
+
+    // Интенсивность варпа: логарифм отношения скорости к обычной
+    let wi = 0;
+    if (player.warp) wi = Math.max(0, Math.min(1, Math.log10(Math.max(1, player.warp.v / player.hull.maxSpeed)) / 7));
+    tunMat.opacity = wi * 0.85;
+    $('veil').style.opacity = (wi * 0.9).toFixed(3);
+    if (wi > 0) {
+      const sc = cam.dist, len = 0.04 + wi * 1.1, adv = dt * (1 + wi * 14);
+      for (let i = 0; i < TUN; i++) {
+        const t = tunSeed[i]; t[2] -= adv * t[3]; if (t[2] < -4) t[2] += 8;
+        tunPos.set([t[0], t[1], t[2], t[0], t[1], t[2] + len * t[3]], i * 6);
+      }
+      tunGeo.attributes.position.needsUpdate = true;
+      tunnel.scale.setScalar(sc); tunnel.rotation.y = player.yaw; tunnel.visible = true;
+    } else tunnel.visible = false;
+    const fov = 60 + wi * 14;
+    if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
+
+    placeCamera();
+    renderer.render(scene, camera);
+    updateLabels();
+    updateHud();
+    slow += dt;
+    if (slow > 0.25) { slow = 0; renderList(); renderActions(); }
+    requestAnimationFrame(frame);
+  }
+  renderList(); renderActions();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

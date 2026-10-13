@@ -1,15 +1,13 @@
-/** Генератор случайных чисел. В тестах — с фиксированным seed, чтобы прогоны повторялись. */
 export type Rng = () => number;
 
-export function seededRng(seed: number): Rng {
+/** Генератор случайных чисел с сидом (mulberry32): одинаковый сид — одинаковая последовательность. */
+export function rng(seed: number): Rng {
   let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-export const range = (rng: Rng, a: number, b: number) => a + rng() * (b - a);
