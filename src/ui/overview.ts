@@ -16,7 +16,7 @@ export interface Overview {
 }
 
 /** Обзор внизу: вкладки «Система» и «Рядом», выбранный объект и приказы для него. */
-export function createOverview(world: PlayerWorld, toast: (msg: string) => void, onSelect: () => void): Overview {
+export function createOverview(world: PlayerWorld, toast: (msg: string) => void): Overview {
   const player = world.player;
   let selected: string | null = null, tab = 'system';
   let listKey = '', actionsKey = '';
@@ -80,7 +80,7 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void,
     $('chips').innerHTML = chips.map((c) => `<button class="btn${c[3] ? ' ' + c[3] : ''}" data-o="${c[0]}" data-v="${c[1]}">${c[2]}</button>`).join('');
   }
 
-  function select(id: string) { selected = id; actionsKey = ''; listKey = ''; renderActions(); renderList(); onSelect(); }
+  function select(id: string) { selected = id; actionsKey = ''; listKey = ''; renderActions(); renderList(); }
 
   listEl.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('.row-item'); if (b) select(b.dataset.id!);
