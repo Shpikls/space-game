@@ -1,3 +1,4 @@
+import type { EnemyDef } from './enemies';
 import type { Rng } from './rng';
 
 /** Позиция в плоскости XZ, метры. */
@@ -140,6 +141,18 @@ export interface Ship {
   attack: string | null;
   /** уничтожен; в конце шага убирается из мира */
   dead: boolean;
+  /** у врагов — кто они и что сейчас делают */
+  ai?: AiState;
+}
+
+/**
+ * Состояние ИИ: idle — не видит игрока; alert — заметил, ждёт время реакции; engage — бой;
+ * flee — уходит в варп; gone — ушёл, больше не вмешивается.
+ */
+export interface AiState {
+  def: EnemyDef;
+  state: 'idle' | 'alert' | 'engage' | 'flee' | 'gone';
+  timer: number;
 }
 
 export type Entity = SpaceObject | Ship;
