@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { weaponRange } from '../sim/combat';
 import { rng } from '../sim/rng';
 import type { Ship, SimEvent, Vec2, World } from '../sim/types';
 import { buildObjectMesh, buildShip, type ShipMeshData } from './meshes';
+import { createShotFx, type P3 } from './shots';
 import { glowTexture } from './textures';
 
 // Прототип рисовался на three.js r128. Чтобы картинка не поменялась, возвращаем его правила:
@@ -25,7 +27,7 @@ export interface SpaceView {
   yawAt(clientX: number, clientY: number): number | null;
   /** позиция относительно игрока → точка на экране (null — за камерой) */
   project(rx: number, rz: number): { x: number; y: number } | null;
-  /** события симуляции, которые видно в сцене: взрывы */
+  /** события симуляции, которые видно в сцене: выстрелы и взрывы */
   handleEvents(events: SimEvent[]): void;
   /** кадр: расставить меши относительно игрока и нарисовать. Возвращает силу эффекта варпа 0…1. */
   render(dt: number): number;
@@ -58,7 +60,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   const TINT = { player: 0xa9b8c8, pirate: 0xb0584e } as Record<string, number>;
   function rebuildShipMesh(s: Ship) {
     const old = shipMeshes.get(s.id); if (old) scene.remove(old);
-    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e);
+    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e, s.turrets.length);
     scene.add(m); shipMeshes.set(s.id, m);
   }
   function syncMeshes() {
@@ -78,8 +80,24 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   const boomTex = glowTexture('rgba(255,244,220,1)', 'rgba(255,140,60,.55)');
   const booms: { sprite: THREE.Sprite; pos: Vec2; size: number; t: number }[] = [];
   const BOOM_LIFE = 1.6;
+  const shots = createShotFx(scene);
+  const tmpMuzzle = new THREE.Vector3();
+  /** Откуда вылетает снаряд: конец ствола (по последнему кадру), иначе центр корабля. */
+  function muzzleOf(shipId: string, turret: number, center: Vec2): P3 {
+    const m = shipMeshes.get(shipId), muzzle = m && (m.userData as ShipMeshData).muzzles[turret];
+    if (!m || !muzzle) return { x: center.x, y: 0, z: center.z };
+    muzzle.getWorldPosition(tmpMuzzle).sub(m.position);
+    return { x: center.x + tmpMuzzle.x, y: tmpMuzzle.y, z: center.z + tmpMuzzle.z };
+  }
   function handleEvents(events: SimEvent[]) {
     for (const e of events) {
+      if (e.type === 'shot') {
+        // попадаем не точно в центр, а куда-то в корпус цели
+        const t = world.byId[e.target], size = t?.type === 'ship' ? t.hull.size : 40;
+        const j = () => (Math.random() - 0.5) * size * 0.5;
+        shots.spawn(muzzleOf(e.ship, e.turret, e.from), { x: e.to.x + j(), y: j() * 0.3, z: e.to.z + j() });
+        continue;
+      }
       if (e.type !== 'destroyed') continue;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: boomTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
       scene.add(sprite);
@@ -89,6 +107,12 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
 
   const tunnel = createTunnel();
   scene.add(tunnel.lines);
+
+  // Кольцо дальности турелей вокруг игрока, пока идёт атака
+  const rangeRing = new THREE.LineLoop(circleGeometry(128),
+    new THREE.LineBasicMaterial({ color: 0xff7a6b, transparent: true, opacity: 0.35, depthWrite: false }));
+  rangeRing.frustumCulled = false;
+  scene.add(rangeRing);
 
   const cam: OrbitCam = { yaw: -2.5, pitch: 0.3, dist: player.hull.size * 7 };
   function placeCamera() {
@@ -144,10 +168,15 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
       m.visible = Math.hypot(rx, rz) < 3e6; if (!m.visible) continue;
       m.position.set(rx, 0, rz); m.rotation.y = s.yaw;
       const f = s.warp ? 1 : Math.min(1, s.speed / s.hull.maxSpeed);
-      const { glow, L } = m.userData as ShipMeshData;
+      const { glow, L, turrets } = m.userData as ShipMeshData;
       glow.scale.setScalar(L * (0.2 + 0.55 * f));
       glow.material.opacity = 0.35 + 0.65 * f;
+      turrets.forEach((t, i) => { t.rotation.y = s.turrets[i]?.aim ?? 0; });
     }
+    shots.update(dt, p);
+    const range = weaponRange(player);
+    rangeRing.visible = !!player.attack && range > 0 && !player.warp;
+    rangeRing.scale.setScalar(range);
 
     // Интенсивность варпа: логарифм отношения скорости к обычной
     let wi = 0;
@@ -170,6 +199,18 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     project,
     render,
   };
+}
+
+/** Окружность радиуса 1 в плоскости полёта. */
+function circleGeometry(segments: number): THREE.BufferGeometry {
+  const pts = new Float32Array(segments * 3);
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.set([Math.sin(a), 0, Math.cos(a)], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  return g;
 }
 
 /** Звёзды с полосой Млечного пути. */

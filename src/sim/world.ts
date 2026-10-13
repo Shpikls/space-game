@@ -2,7 +2,7 @@ import { AU, DEG, MIN_WARP } from './constants';
 import { HULLS, isHullKey } from './hulls';
 import { yawTo } from './math';
 import { rng } from './rng';
-import { TURRETS } from './turrets';
+import { TURRETS, mountTurret } from './turrets';
 import type { Entity, Faction, HullKey, PlanetLook, PlayerWorld, Ship, SpaceObject, Vec2, World } from './types';
 
 export interface WorldOptions {
@@ -58,7 +58,7 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
   spawnPirate(world);
 
   const player = addShip(world, 'player', 'Ваш корабль', isHullKey(opts.hull) ? opts.hull : 'cruiser', { x: 0, z: 0 }, 0, 'player');
-  player.turrets = [{ def: TURRETS.light, cooldown: 0 }];
+  player.turrets = [mountTurret(TURRETS.light)];
   world.player = player;
   teleport(world, player, opts.at || 'station');
   return world as PlayerWorld;

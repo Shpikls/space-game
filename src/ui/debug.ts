@@ -38,6 +38,13 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
       ['Выравнивание, поворот 180°', m.a180.align.toFixed(1).replace('.', ',') + ' с'],
       ['Варп на 10 а. е.', fmtSec(m.a90.warp)],
       ['Варп на 30 а. е.', fmtSec(m.w30.warp)],
+      ...player.turrets.flatMap((tr) => [
+        ['Турель', tr.def.name],
+        ['Урон', tr.def.damage + ' за выстрел'],
+        ['Перезарядка', String(tr.def.cycle).replace('.', ',') + ' с'],
+        ['Дальность', nf.format(tr.def.range / 1000) + ' км'],
+        ['Скорость наведения', Math.round(tr.def.tracking / DEG) + ' °/с'],
+      ]),
     ];
     $('stats').innerHTML = rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
   }

@@ -1,4 +1,6 @@
-import type { Ship, SpaceObject, World } from './types';
+import { clamp, wrap, yawTo } from './math';
+import { AIM_TOLERANCE } from './turrets';
+import type { Ship, SpaceObject, Turret, World } from './types';
 import { surfaceDistance } from './world';
 
 /** Дальность самой дальнобойной турели корабля (0 — турелей нет). */
@@ -17,18 +19,51 @@ export function setAttack(world: World, s: Ship, targetId: string | null): boole
   return true;
 }
 
-/** Турели перезаряжаются всегда, а стреляют, когда цель жива и в пределах дальности. */
+/** Цель атаки, если она ещё существует. */
+function attackTarget(world: World, s: Ship): Ship | null {
+  const t = s.attack ? world.byId[s.attack] : undefined;
+  return t && t.type === 'ship' && !t.dead ? t : null;
+}
+
+/** Куда должен смотреть ствол (относительно носа), чтобы попасть в цель. */
+const aimTo = (s: Ship, t: Ship) => wrap(yawTo(t.pos.x - s.pos.x, t.pos.z - s.pos.z) - s.yaw);
+
+/** Поворачивает башню к нужному углу не быстрее её скорости наведения. */
+function rotateTurret(tr: Turret, want: number, dt: number) {
+  const mx = tr.def.tracking * dt;
+  tr.aim = wrap(tr.aim + clamp(wrap(want - tr.aim), -mx, mx));
+}
+
+export type AttackStatus = 'none' | 'far' | 'aiming' | 'firing';
+
+/** Что сейчас с атакой: нет цели, цель дальше дальности, башня наводится, ведётся огонь. */
+export function attackStatus(world: World, s: Ship): AttackStatus {
+  const t = attackTarget(world, s);
+  if (!t || s.turrets.length === 0) return 'none';
+  const d = surfaceDistance(s, t);
+  const ready = s.turrets.filter((tr) => d <= tr.def.range);
+  if (ready.length === 0) return 'far';
+  const want = aimTo(s, t);
+  return ready.some((tr) => Math.abs(wrap(want - tr.aim)) <= AIM_TOLERANCE) ? 'firing' : 'aiming';
+}
+
+/**
+ * Турели перезаряжаются всегда. Башня поворачивается к цели (без цели — обратно вперёд)
+ * и стреляет, когда навелась, перезарядилась и цель в пределах дальности.
+ */
 export function stepWeapons(world: World, s: Ship, dt: number): void {
   for (const tr of s.turrets) tr.cooldown = Math.max(0, tr.cooldown - dt);
-  if (s.warp || !s.attack) return;
-  const t = world.byId[s.attack];
-  if (!t || t.type !== 'ship' || t.dead) { s.attack = null; return; }
-  const d = surfaceDistance(s, t);
-  for (const tr of s.turrets) {
-    if (tr.cooldown > 0 || d > tr.def.range) continue;
+  const t = s.warp ? null : attackTarget(world, s);
+  if (s.attack && !t && !s.warp) s.attack = null;
+  if (!t) { for (const tr of s.turrets) rotateTurret(tr, 0, dt); return; }
+  const want = aimTo(s, t), d = surfaceDistance(s, t);
+  for (let i = 0; i < s.turrets.length; i++) {
+    const tr = s.turrets[i]!;
+    rotateTurret(tr, want, dt);
+    if (tr.cooldown > 0 || d > tr.def.range || Math.abs(wrap(want - tr.aim)) > AIM_TOLERANCE) continue;
     tr.cooldown = tr.def.cycle;
     t.structure = Math.max(0, t.structure - tr.def.damage);
-    world.events.push({ type: 'shot', ship: s.id, target: t.id, damage: tr.def.damage });
+    world.events.push({ type: 'shot', ship: s.id, target: t.id, turret: i, damage: tr.def.damage, from: { ...s.pos }, to: { ...t.pos } });
     if (t.structure <= 0) {
       t.dead = true;
       world.events.push({ type: 'destroyed', ship: t.id, name: t.name, by: s.id, pos: { ...t.pos }, size: t.hull.size });

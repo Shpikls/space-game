@@ -53,10 +53,24 @@ export function buildWreck(seed: number): THREE.Group {
 export interface ShipMeshData {
   glow: THREE.Sprite;
   L: number;
+  /** башни турелей: поворачиваются вокруг вертикали */
+  turrets: THREE.Object3D[];
+  /** точки на концах стволов — откуда вылетает снаряд */
+  muzzles: THREE.Object3D[];
 }
 
-/** Корабль длиной L = h.size вдоль оси Z, с факелом двигателя. */
-export function buildShip(h: Hull, tint: number): THREE.Group {
+/** Башня турели: основание и ствол вдоль +Z. */
+function buildTurret(L: number, mat: THREE.Material): { turret: THREE.Group; muzzle: THREE.Object3D } {
+  const turret = new THREE.Group();
+  turret.add(new THREE.Mesh(new THREE.CylinderGeometry(L * 0.045, L * 0.05, L * 0.03, 12), mat));
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(L * 0.016, L * 0.016, L * 0.15), mat);
+  barrel.position.set(0, L * 0.012, L * 0.075); turret.add(barrel);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, L * 0.012, L * 0.15); turret.add(muzzle);
+  return { turret, muzzle };
+}
+
+/** Корабль длиной L = h.size вдоль оси Z, с факелом двигателя и башнями турелей сверху. */
+export function buildShip(h: Hull, tint: number, turretCount = 0): THREE.Group {
   const g = new THREE.Group(), L = h.size;
   const mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0.55, roughness: 0.38 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x2b323c, metalness: 0.5, roughness: 0.6 });
@@ -70,7 +84,14 @@ export function buildShip(h: Hull, tint: number): THREE.Group {
   fin.position.set(0, L * 0.09, -L * 0.24); g.add(fin);
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: engineTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   glow.position.z = -L * 0.4; glow.scale.setScalar(L * 0.45); g.add(glow);
-  const data: ShipMeshData = { glow, L };
+  const turrets: THREE.Object3D[] = [], muzzles: THREE.Object3D[] = [];
+  const turretMat = new THREE.MeshStandardMaterial({ color: 0x5b6573, metalness: 0.6, roughness: 0.4 });
+  for (let i = 0; i < turretCount; i++) {
+    const { turret, muzzle } = buildTurret(L, turretMat);
+    turret.position.set(0, L * 0.095, L * 0.1 - i * L * 0.16);
+    g.add(turret); turrets.push(turret); muzzles.push(muzzle);
+  }
+  const data: ShipMeshData = { glow, L, turrets, muzzles };
   g.userData = data;
   return g;
 }
