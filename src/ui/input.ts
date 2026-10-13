@@ -1,5 +1,5 @@
 import type { SpaceView } from '../render/scene';
-import { issueOrder } from '../sim/step';
+import { issueOrder } from '../sim/orders';
 import type { PlayerWorld } from '../sim/types';
 
 /**

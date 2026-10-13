@@ -1,5 +1,6 @@
 import { AU, DEG, MIN_WARP } from './constants';
 import { repairShip } from './damage';
+import { ENEMIES, type EnemyKey } from './enemies';
 import { HULLS, isHullKey } from './hulls';
 import { yawTo } from './math';
 import { rng } from './rng';
@@ -61,6 +62,7 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
   npc2.order = { type: 'orbit', target: 'station', range: 11e3 };
 
   spawnPirate(world);
+  spawnSignalPirates(world);
 
   const player = addShip(world, 'player', 'Ваш корабль', isHullKey(opts.hull) ? opts.hull : 'cruiser', { x: 0, z: 0 }, 0, 'player');
   player.turrets = [mountTurret(TURRETS[isTurretKey(opts.gun) ? opts.gun : 'light'])];
@@ -72,14 +74,38 @@ export function createWorld(opts: WorldOptions = {}): PlayerWorld {
 /** Точка на расстоянии d от p по курсу deg (градусы). */
 export const offset = (p: Vec2, d: number, deg: number): Vec2 => ({ x: p.x + Math.sin(deg * DEG) * d, z: p.z + Math.cos(deg * DEG) * d });
 
+/**
+ * Враг по данным типа: корпус, турель и ИИ в покое.
+ * Если корабль с таким id уже есть (например, сбежал в варп) — чинит и возвращает на место, в покой.
+ */
+export function spawnEnemy(world: World, key: EnemyKey, id: string, pos: Vec2, yaw = 0): Ship {
+  const old = world.byId[id];
+  if (old && old.type === 'ship') {
+    repairShip(old);
+    Object.assign(old, { pos: { ...pos }, yaw, speed: 0, angVel: 0, warp: null, align: null, attack: null, order: { type: 'stop' } });
+    if (old.ai) old.ai = { ...old.ai, state: 'idle', timer: 0 };
+    return old;
+  }
+  const def = ENEMIES[key];
+  const s = addShip(world, id, def.name, def.hull, pos, yaw, 'pirate');
+  s.turrets = [mountTurret(TURRETS[def.gun])];
+  s.ai = { def, state: 'idle', timer: 0 };
+  return s;
+}
+
 /** Пират «Шакал» неподвижно висит в 30 км от станции, с лёгкой турелью. Если он уже есть — чинит его. */
 export function spawnPirate(world: World): Ship {
-  const old = world.byId.pirate1;
-  if (old && old.type === 'ship') { repairShip(old); return old; }
   const station = objectById(world, 'station')!;
-  const p = addShip(world, 'pirate1', 'Пират «Шакал»', 'frigate', offset(station.pos, 30e3, 140), 1.2, 'pirate');
-  p.turrets = [mountTurret(TURRETS.light)];
-  return p;
+  return spawnEnemy(world, 'jackal', 'pirate1', offset(station.pos, 30e3, 140), 1.2);
+}
+
+/** У сигнала «обломки конвоя» засада: брулер «Оса» и снайпер «Гюрза». Если уже есть — чинит. */
+export function spawnSignalPirates(world: World): Ship[] {
+  const signal = objectById(world, 'signal')!;
+  return [
+    spawnEnemy(world, 'wasp', 'pirate2', offset(signal.pos, 14e3, 60), 3),
+    spawnEnemy(world, 'viper', 'pirate3', offset(signal.pos, 26e3, 210), 0.5),
+  ];
 }
 
 /** Новый вылет после гибели: корабль целиком починен и стоит у станции. */

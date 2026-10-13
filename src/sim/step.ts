@@ -2,16 +2,7 @@ import { stepAI } from './ai';
 import { removeDead, stepWeapons } from './combat';
 import { regenShield } from './damage';
 import { stepShip } from './ship';
-import type { Order, Ship, World } from './types';
-import { canWarpTo } from './world';
-
-/** Отдаёт приказ кораблю. false — приказ недоступен (в варпе или до цели варпа слишком близко). */
-export function issueOrder(world: World, s: Ship, order: Order): boolean {
-  if (s.warp || s.dead) return false; // варп нельзя прервать
-  if (order.type === 'warp' && !canWarpTo(world, s, world.byId[order.target])) return false;
-  s.order = order; s.align = null;
-  return true;
-}
+import type { World } from './types';
 
 /** Продвигает мир на dt секунд мелкими шагами не длиннее 0,02 с. */
 export function step(world: World, dt: number): void {
@@ -20,7 +11,7 @@ export function step(world: World, dt: number): void {
   if (!(dt > 0)) return;
   const n = Math.max(1, Math.ceil(dt / 0.02)), h = dt / n;
   for (let i = 0; i < n; i++) {
-    for (const s of world.ships) stepAI(world, s);
+    for (const s of world.ships) stepAI(world, s, h);
     for (const s of world.ships) if (!s.dead) stepShip(world, s, h);
     for (const s of world.ships) regenShield(s, h);
     for (const s of world.ships) stepWeapons(world, s, h);

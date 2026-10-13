@@ -1,6 +1,6 @@
 import { setAttack } from '../sim/combat';
 import { GRID_RANGE } from '../sim/constants';
-import { issueOrder } from '../sim/step';
+import { issueOrder } from '../sim/orders';
 import type { Entity, Order, PlayerWorld } from '../sim/types';
 import { canWarpTo, surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
@@ -68,7 +68,8 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
     if (player.warp) {
       $('selHint').textContent = TYPE_NAME[e.type] + '. В варпе приказы недоступны.';
     } else {
-      $('selHint').textContent = (hostile ? 'Враг' : TYPE_NAME[e.type]) + (warpable ? '. Можно варпнуть.' : near ? '. В пределах манёвра.' : '. Слишком далеко для манёвра.');
+      const who = e.type === 'ship' && e.ai ? 'Враг: ' + e.ai.def.role : hostile ? 'Враг' : TYPE_NAME[e.type];
+      $('selHint').textContent = who + (warpable ? '. Можно варпнуть.' : near ? '. В пределах манёвра.' : '. Слишком далеко для манёвра.');
       if (hostile) chips.push(attacking ? ['ceasefire', 0, 'Прекратить огонь', 'attack'] : ['attack', 0, 'Атаковать', 'attack']);
       if (warpable) chips.push(['warp', 0, 'Варп на 0 км', 'primary'], ['warp', 10e3, 'на 10 км', 'primary'], ['warp', 50e3, 'на 50 км', 'primary']);
       if (near) {
