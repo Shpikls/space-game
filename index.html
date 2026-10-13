@@ -29,7 +29,7 @@
       <div class="row" style="margin-top:4px"><span id="warpTarget"></span><span id="warpLeft"></span></div>
       <div class="meter"><i id="warpBar"></i></div>
     </div>
-    <button id="stopBtn" class="btn">Стоп</button>
+    <button id="stopBtn" class="btn" data-stop>Стоп</button>
   </div>
   <button id="gear" class="btn" aria-label="Отладка">⚙</button>
 </div>
@@ -49,6 +49,12 @@
     <button class="tab" data-tab="near">Рядом</button>
   </div>
   <div id="list"></div>
+</div>
+
+<!-- Телефон вертикально: «Стоп» и обзор — внизу под большим пальцем -->
+<div id="bar">
+  <button class="btn" data-stop>Стоп</button>
+  <button class="btn" id="overviewBtn" aria-expanded="false">≡ Обзор</button>
 </div>
 
 <aside id="debug" aria-label="Отладка">
