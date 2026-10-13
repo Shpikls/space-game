@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Прототип полёта</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{ --space:#0e1631; --panel:rgba(14,22,49,.8); --ink:#dfe6f5; --muted:#8e9bc0; --line:rgba(255,255,255,.22); --accent:#5fd8cb; --accent-ink:#0e1631; }
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--space);color:var(--ink);font-family:"Exo 2","Segoe UI",system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.35}
+.stage{position:fixed;inset:0;touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.stage canvas{position:absolute;inset:0;display:block}
+.top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:8px;right:8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none}
+.row{align-self:stretch;display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);pointer-events:auto}
+.seg button{font:inherit;font-weight:600;font-size:13px;padding:8px 11px;min-height:38px;border:0;background:none;color:var(--ink);cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.hud{background:var(--panel);border-radius:10px;padding:6px 10px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hud b{color:var(--ink);font-weight:600}
+.bottom{position:absolute;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;pointer-events:none}
+.left{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
+.sel{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;max-width:100%}
+.sel[hidden]{display:none}
+.sel .name{font-size:13px;color:var(--muted);padding:0 2px;font-variant-numeric:tabular-nums}
+.sel .name b{color:var(--ink)}
+.sel .acts{display:flex;gap:6px}
+.foot{display:flex;align-items:flex-end;gap:8px;min-width:0}
+.hint{margin:0;font-size:12px;color:var(--muted);background:var(--panel);border-radius:10px;padding:6px 10px}
+.btn{pointer-events:auto;font:inherit;font-weight:600;font-size:13px;min-width:44px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;flex:none}
+.btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.zoom{display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+.zb{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 21px/1 "Exo 2",sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="cv" aria-label="Космос"></canvas>
+  <div class="top" id="top">
+    <div class="row">
+      <div class="seg" role="group" aria-label="Корабль">
+        <button data-ship="frigate">Стриж</button><button data-ship="cruiser">Кондор</button>
+      </div>
+    </div>
+    <div class="hud" id="hud"></div>
+  </div>
+  <div class="bottom" id="bottom">
+    <div class="left">
+      <div class="sel" id="sel" hidden>
+        <div class="name" id="selName"></div>
+        <div class="acts">
+          <button class="btn" id="approachBtn">Подлететь</button>
+          <button class="btn" id="orbitBtn">Орбита 500 м</button>
+          <button class="btn" id="unselBtn" aria-label="Снять выбор">✕</button>
+        </div>
+      </div>
+      <div class="foot">
+        <button class="btn" id="stopBtn">Стоп</button>
+        <p class="hint" id="hint"></p>
+      </div>
+    </div>
+    <div class="zoom"><button class="zb" data-z="in" aria-label="Приблизить">+</button><button class="zb" data-z="out" aria-label="Отдалить">−</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d'), stage = $('#stage');
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+
+/* ================= data ================= */
+const TIME_SCALE = 0.7, STEP = 1/60, ORBIT_R = 500, APPROACH_STOP = 60, MAX_LEAD = 12 * Math.PI / 180;
+// turn — скорость поворота носа на месте, рад/с
+const SHIPS = {
+  frigate:{ name:'Фрегат «Стриж»', speed:230, accel:170, turn:2.0, size:9 },
+  cruiser:{ name:'Крейсер «Кондор»', speed:150, accel:85, turn:0.9, size:14 }
+};
+const COL = { space:'#0e1631', dot:'#2b3b6e', player:'#6ee7d8', text:'#dfe6f5', muted:'#8e9bc0', mark:'#9be8ff', flame:'#ffb35c', beacon:'#f2c14e', seen:'#5fd39a' };
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+const touch = matchMedia('(hover: none)').matches;
+function seeded(seed){ let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function hash(x, y){ let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+const fmtDist = d => d < 1000 ? Math.round(d) + ' м' : (d / 1000).toFixed(1).replace('.', ',') + ' км';
+
+/* ================= world ================= */
+const R = seeded(7), rnd = (a, b) => a + R() * (b - a);
+const BEACONS = [[900,-300],[-1400,-900],[-600,1500],[2300,900],[600,-2600],[-2800,600]]
+  .map(([x, y], i) => ({ kind:'beacon', x, y, name:'Маяк ' + (i + 1), seen:false }));
+const BELT = { kind:'belt', x:2600, y:-1500, name:'Пояс астероидов' };
+const OBJECTS = [...BEACONS, BELT];
+const ROCKS = Array.from({ length:18 }, () => {
+  const a = R() * Math.PI * 2, d = Math.sqrt(R()) * 520;
+  return { x:BELT.x + Math.cos(a) * d, y:BELT.y + Math.sin(a) * d, r:rnd(7, 18), verts:Array.from({ length:9 }, () => rnd(0.72, 1.15)), rot:R() * 6 };
+});
+const PLANET = { x:800, y:-1400, r:600, k:0.15 };
+
+/* ================= state ================= */
+let shipId = SHIPS[store.get('sgf.ship', 'frigate')] ? store.get('sgf.ship', 'frigate') : 'frigate';
+let viewSpan = clamp(Number(store.get('sgf.zoom', 2800)) || 2800, 1200, 5000);
+const p = { x:0, y:0, vx:0, vy:0, angle:-Math.PI/2, maxSpeed:0, accel:0, turn:0, size:0, tx:0, ty:0 };
+// order: stop | dir {angle} | approach {obj} | orbit {obj}
+let order = { type:'stop' }, selected = null, time = 0, taps = [];
+let cssW = 0, cssH = 0, dpr = 1, sc = 0.15;
+const cam = { x:0, y:0 };
+
+function applyShip(){ const S = SHIPS[shipId]; p.maxSpeed = S.speed; p.accel = S.accel; p.turn = S.turn; p.size = S.size; }
+function setZoom(v){ viewSpan = clamp(v, 1200, 5000); store.set('sgf.zoom', Math.round(viewSpan)); }
+
+/* ================= movement ================= */
+// разгон к желаемой скорости с ограничением ускорения, как steer() в src/sim/movement.ts,
+// но нос корабля не прыгает за скоростью: его поворачивает update() с ограниченной скоростью поворота
+function steer(s, dx, dy, dt){
+  let ax = dx - s.vx, ay = dy - s.vy;
+  const am = Math.hypot(ax, ay), lim = s.accel * dt;
+  if (am > lim){ ax = ax / am * lim; ay = ay / am * lim; }
+  s.tx += (ax / lim - s.tx) * 0.2; s.ty += (ay / lim - s.ty) * 0.2;
+  s.vx += ax; s.vy += ay;
+  s.x += s.vx * dt; s.y += s.vy * dt;
+}
+// то же, что orbitDesired() в src/sim/movement.ts
+function orbitDesired(s, t, radius, dir){
+  const d = Math.hypot(s.x - t.x, s.y - t.y) || 1, rx = (s.x - t.x) / d, ry = (s.y - t.y) / d;
+  const corr = clamp((d - radius) / (radius * 0.5), -1, 1);
+  return [-ry * dir - rx * corr * 1.5, rx * dir - ry * corr * 1.5];
+}
+/** Куда повернуть нос (null — не поворачивать) и с какой скоростью лететь. */
+function pilot(){
+  if (order.type === 'dir') return [order.angle, p.maxSpeed];
+  if (order.type === 'approach'){
+    const dx = order.obj.x - p.x, dy = order.obj.y - p.y, left = Math.hypot(dx, dy) - APPROACH_STOP;
+    if (left < 8){ order = { type:'stop' }; return [null, 0]; }
+    const ang = Math.atan2(dy, dx), facing = Math.cos(wrap(ang - p.angle));
+    // скорость, с которой ещё успеваем затормозить; пока нос смотрит мимо — притормаживаем, чтобы не кружить
+    return [ang, Math.min(p.maxSpeed, Math.sqrt(2 * p.accel * 0.85 * left)) * Math.max(0.3, facing)];
+  }
+  if (order.type === 'orbit'){ const [vx, vy] = orbitDesired(p, order.obj, ORBIT_R, 1); return [Math.atan2(vy, vx), p.maxSpeed]; }
+  return [null, 0];
+}
+
+function update(dt){
+  time += dt;
+  const [ang, speed] = pilot();
+  if (ang !== null){
+    // стоя на месте нос разворачивается свободно; на скорости — не быстрее, чем успевает повернуть сама скорость,
+    // поэтому корабль идёт по дуге, а не скользит боком. И нос никогда не опережает направление полёта больше чем на 12°
+    const v = Math.hypot(p.vx, p.vy), mx = Math.min(p.turn, 0.9 * p.accel / Math.max(v, 1)) * dt;
+    p.angle = wrap(p.angle + clamp(wrap(ang - p.angle), -mx, mx));
+    if (v > 30){ const va = Math.atan2(p.vy, p.vx); p.angle = wrap(va + clamp(wrap(p.angle - va), -MAX_LEAD, MAX_LEAD)); }
+  }
+  steer(p, Math.cos(p.angle) * speed, Math.sin(p.angle) * speed, dt);
+  for (const b of BEACONS) if (!b.seen && Math.hypot(b.x - p.x, b.y - p.y) < 150) b.seen = true;
+  for (const t of taps) t.t += dt;
+  taps = taps.filter(t => t.t < 0.5);
+}
+
+/* ================= render ================= */
+function resize(){
+  const r = stage.getBoundingClientRect();
+  cssW = Math.max(1, r.width); cssH = Math.max(1, r.height); dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+const toS = (x, y, k = 1) => [cssW/2 + (x - cam.x * k) * sc, cssH/2 + (y - cam.y * k) * sc];
+const toW = (sx, sy) => ({ x: cam.x + (sx - cssW/2) / sc, y: cam.y + (sy - cssH/2) / sc });
+const onScreen = (x, y, m) => x > -m && y > -m && x < cssW + m && y < cssH + m;
+const objColor = o => o.kind === 'belt' ? COL.muted : (o.seen ? COL.seen : COL.beacon);
+
+// стрелки к объектам за краем экрана — не залезают под панели сверху и снизу
+let edgeTop = 110, edgeBottom = 70;
+function arrowPos(o){
+  const [x, y] = toS(o.x, o.y);
+  if (onScreen(x, y, 10)) return null;
+  const [px, py] = toS(p.x, p.y);
+  return { x:clamp(x, 20, cssW - 20), y:clamp(y, edgeTop, cssH - edgeBottom), ang:Math.atan2(y - py, x - px) };
+}
+
+function drawStars(){
+  const k = 0.4, T = 700, hw = cssW/2/sc, hh = cssH/2/sc, cx = cam.x * k, cy = cam.y * k;
+  ctx.fillStyle = '#c9d6f5';
+  for (let tx = Math.floor((cx - hw) / T); tx <= Math.floor((cx + hw) / T); tx++)
+    for (let ty = Math.floor((cy - hh) / T); ty <= Math.floor((cy + hh) / T); ty++)
+      for (let i = 0; i < 6; i++){
+        const sx = tx * T + hash(tx, ty * 31 + i) * T, sy = ty * T + hash(tx * 17 + i, ty) * T;
+        const [x, y] = toS(sx, sy, k);
+        ctx.globalAlpha = 0.25 + 0.5 * hash(tx + i, ty - i);
+        ctx.fillRect(x, y, 1.5, 1.5);
+      }
+  ctx.globalAlpha = 1;
+}
+function drawPlanet(){
+  const [x, y] = toS(PLANET.x, PLANET.y, PLANET.k), r = PLANET.r * sc;
+  if (!onScreen(x, y, r)) return;
+  const g = ctx.createRadialGradient(x - r*0.4, y - r*0.4, r*0.1, x, y, r);
+  g.addColorStop(0, '#3b5d94'); g.addColorStop(1, '#16244a');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+}
+function drawGrid(){
+  const step = 150;
+  const x0 = Math.floor((cam.x - cssW/2/sc) / step) * step, x1 = cam.x + cssW/2/sc;
+  const y0 = Math.floor((cam.y - cssH/2/sc) / step) * step, y1 = cam.y + cssH/2/sc;
+  ctx.fillStyle = COL.dot;
+  for (let gx = x0; gx <= x1; gx += step) for (let gy = y0; gy <= y1; gy += step){ const [sx, sy] = toS(gx, gy); ctx.fillRect(sx - 1, sy - 1, 2, 2); }
+}
+function drawRocks(){
+  for (const a of ROCKS){
+    const [x, y] = toS(a.x, a.y);
+    if (!onScreen(x, y, 30)) continue;
+    ctx.fillStyle = '#4d5670'; ctx.strokeStyle = 'rgba(184,194,214,.7)';
+    ctx.beginPath();
+    a.verts.forEach((k, i) => { const ang = a.rot + i * Math.PI * 2 / a.verts.length; ctx.lineTo(x + Math.cos(ang)*a.r*k, y + Math.sin(ang)*a.r*k); });
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+function drawObjects(){
+  ctx.font = '500 11px "Exo 2", sans-serif'; ctx.textAlign = 'center';
+  for (const o of OBJECTS){
+    const [x, y] = toS(o.x, o.y);
+    if (!onScreen(x, y, 40)) continue;
+    const c = objColor(o);
+    ctx.fillStyle = c; ctx.strokeStyle = c;
+    if (o.kind === 'belt'){
+      ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI*2); ctx.stroke(); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fill();
+    } else {
+      if (!o.seen){ const k = (time % 1.6) / 1.6; ctx.globalAlpha = 1 - k; ctx.beginPath(); ctx.arc(x, y, 8 + k * 16, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha = 1; }
+      ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 7); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillText(o.name + (o.seen ? ' ✓' : ''), x, y + 22);
+  }
+}
+function drawSelection(){
+  if (!selected) return;
+  const [x, y] = toS(selected.x, selected.y);
+  if (order.type === 'orbit' && order.obj === selected){
+    ctx.strokeStyle = COL.player; ctx.globalAlpha = 0.25; ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.arc(x, y, ORBIT_R * sc, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  if (!onScreen(x, y, 10)) return;
+  ctx.strokeStyle = COL.player; ctx.lineWidth = 1.5;
+  const rot = time * 1.5;
+  for (let i = 0; i < 4; i++){ ctx.beginPath(); ctx.arc(x, y, 15, rot + i*Math.PI/2, rot + i*Math.PI/2 + 0.8); ctx.stroke(); }
+  ctx.lineWidth = 1;
+}
+function drawCourse(px, py){
+  ctx.strokeStyle = COL.mark; ctx.globalAlpha = 0.35; ctx.setLineDash([3, 6]);
+  if (order.type === 'dir'){
+    const L = Math.max(cssW, cssH);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(order.angle) * L, py + Math.sin(order.angle) * L); ctx.stroke();
+  } else if (order.type === 'approach'){
+    const [x, y] = toS(order.obj.x, order.obj.y);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+  for (const t of taps){
+    const k = t.t / 0.5, [x, y] = toS(t.x, t.y);
+    ctx.strokeStyle = COL.mark; ctx.globalAlpha = 1 - k; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 4 + k * 16, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.lineWidth = 1;
+  }
+}
+function drawShip(x, y){
+  // огонь двигателя — с той стороны, куда корабль НЕ ускоряется (при торможении он спереди)
+  const tm = Math.hypot(p.tx, p.ty);
+  if (tm > 0.05){
+    const ux = p.tx / tm, uy = p.ty / tm, k = Math.min(1, tm);
+    const bx = x - ux * p.size * 0.9, by = y - uy * p.size * 0.9, len = 5 + 14 * k, w = 3 + 2 * k;
+    ctx.fillStyle = COL.flame; ctx.globalAlpha = 0.35 + 0.5 * k;
+    ctx.beginPath(); ctx.moveTo(bx - uy*w, by + ux*w); ctx.lineTo(bx + uy*w, by - ux*w); ctx.lineTo(bx - ux*len, by - uy*len); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.save(); ctx.translate(x, y); ctx.rotate(p.angle);
+  ctx.fillStyle = COL.player; ctx.strokeStyle = 'rgba(255,255,255,.4)';
+  const r = p.size;
+  ctx.beginPath();
+  if (shipId === 'cruiser'){ ctx.moveTo(r*1.4, 0); ctx.lineTo(r*0.2, r*0.8); ctx.lineTo(-r, r*0.8); ctx.lineTo(-r*0.6, 0); ctx.lineTo(-r, -r*0.8); ctx.lineTo(r*0.2, -r*0.8); }
+  else { ctx.moveTo(r*1.6, 0); ctx.lineTo(-r*1.1, r); ctx.lineTo(-r*0.5, 0); ctx.lineTo(-r*1.1, -r); }
+  ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+}
+function drawArrows(){
+  ctx.font = '500 10px "Exo 2", sans-serif'; ctx.textAlign = 'center';
+  for (const o of OBJECTS){
+    const a = arrowPos(o);
+    if (!a) continue;
+    const c = objColor(o);
+    ctx.globalAlpha = o.seen ? 0.6 : 1;
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.ang); ctx.fillStyle = c;
+    ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, 5); ctx.lineTo(-5, -5); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.fillStyle = c; ctx.fillText(fmtDist(Math.hypot(o.x - p.x, o.y - p.y)), a.x, a.y + (a.y > cssH / 2 ? -12 : 18));
+    ctx.globalAlpha = 1;
+    if (o === selected){ ctx.strokeStyle = COL.player; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(a.x, a.y, 13, 0, Math.PI*2); ctx.stroke(); ctx.lineWidth = 1; }
+  }
+}
+
+function render(){
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = COL.space; ctx.fillRect(0, 0, cssW, cssH);
+  sc = Math.min(cssW, cssH) / viewSpan;
+  cam.x = p.x; cam.y = p.y;
+  edgeTop = $('#top').getBoundingClientRect().bottom + 14;
+  edgeBottom = cssH - $('#bottom').getBoundingClientRect().top + 14;
+  drawStars(); drawPlanet(); drawGrid(); drawRocks(); drawObjects(); drawSelection();
+  const [px, py] = toS(p.x, p.y);
+  drawCourse(px, py); drawShip(px, py); drawArrows();
+}
+
+/* ================= ui ================= */
+const hud = $('#hud'), hint = $('#hint'), sel = $('#sel'), selName = $('#selName');
+const approachBtn = $('#approachBtn'), orbitBtn = $('#orbitBtn');
+hint.textContent = touch
+  ? 'Тап по космосу — лететь в ту сторону. Тап по маяку или стрелке у края — лететь к нему.'
+  : 'Клик по космосу — лететь в ту сторону. Клик по маяку или стрелке у края — лететь к нему. Пробел — стоп.';
+
+function orderText(){
+  switch (order.type){
+    case 'dir': return 'Курс: по направлению';
+    case 'approach': return 'Подлёт: ' + order.obj.name;
+    case 'orbit': return 'Орбита: ' + order.obj.name + ', ' + ORBIT_R + ' м';
+    default: return 'Стоп';
+  }
+}
+function updateControls(){
+  document.querySelectorAll('[data-ship]').forEach(b => b.classList.toggle('on', b.dataset.ship === shipId));
+  sel.hidden = !selected;
+  approachBtn.classList.toggle('on', order.type === 'approach' && order.obj === selected);
+  orbitBtn.classList.toggle('on', order.type === 'orbit' && order.obj === selected);
+  updateHud();
+}
+function updateHud(){
+  const seen = BEACONS.filter(b => b.seen).length;
+  hud.innerHTML = '<b>' + SHIPS[shipId].name + '</b> · <b>' + Math.round(Math.hypot(p.vx, p.vy)) + '</b> м/с<br>'
+    + '<b>' + orderText() + '</b> · ' + (seen === BEACONS.length ? 'все маяки пройдены' : 'маяки ' + seen + ' / ' + BEACONS.length);
+  if (selected) selName.innerHTML = '<b>' + selected.name + '</b> · ' + fmtDist(Math.hypot(selected.x - p.x, selected.y - p.y));
+}
+
+function setOrder(o){ order = o; updateControls(); }
+document.querySelectorAll('[data-ship]').forEach(b => b.addEventListener('click', () => {
+  shipId = b.dataset.ship; applyShip(); store.set('sgf.ship', shipId); updateControls();
+}));
+approachBtn.addEventListener('click', () => selected && setOrder({ type:'approach', obj:selected }));
+orbitBtn.addEventListener('click', () => selected && setOrder({ type:'orbit', obj:selected }));
+$('#unselBtn').addEventListener('click', () => { selected = null; updateControls(); });
+$('#stopBtn').addEventListener('click', () => setOrder({ type:'stop' }));
+document.querySelectorAll('.zb').forEach(b => b.addEventListener('click', () => setZoom(viewSpan * (b.dataset.z === 'in' ? 0.8 : 1.25))));
+document.addEventListener('keydown', ev => {
+  if (ev.code === 'Space'){ setOrder({ type:'stop' }); ev.preventDefault(); }
+  else if (ev.code === 'Escape'){ selected = null; updateControls(); }
+});
+
+/** Объект под пальцем: сам объект на экране или стрелка к нему у края. */
+function pick(sx, sy){
+  let best = null, bd = 34;
+  for (const o of OBJECTS){ const [x, y] = toS(o.x, o.y); const d = Math.hypot(x - sx, y - sy); if (d < bd){ bd = d; best = o; } }
+  if (best) return best;
+  bd = 30;
+  for (const o of OBJECTS){ const a = arrowPos(o); if (!a) continue; const d = Math.hypot(a.x - sx, a.y - sy); if (d < bd){ bd = d; best = o; } }
+  return best;
+}
+function onTap(sx, sy){
+  const o = pick(sx, sy);
+  if (o){ selected = o; setOrder({ type:'approach', obj:o }); return; }
+  const w = toW(sx, sy);
+  taps.push({ x:w.x, y:w.y, t:0 });
+  setOrder({ type:'dir', angle:Math.atan2(w.y - p.y, w.x - p.x) });
+}
+
+const pts = new Map(); let pinchD = 0, tap = null;
+const pinchDist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+cv.addEventListener('pointerdown', ev => {
+  cv.setPointerCapture(ev.pointerId);
+  pts.set(ev.pointerId, { x:ev.clientX, y:ev.clientY });
+  if (pts.size === 2){ pinchD = pinchDist(); tap = null; return; }
+  if (pts.size === 1) tap = { id:ev.pointerId, x:ev.clientX, y:ev.clientY };
+});
+cv.addEventListener('pointermove', ev => {
+  if (!pts.has(ev.pointerId)) return;
+  pts.set(ev.pointerId, { x:ev.clientX, y:ev.clientY });
+  if (pts.size === 2){ const d = pinchDist(); setZoom(viewSpan * pinchD / d); pinchD = d; return; }
+  if (tap && tap.id === ev.pointerId && Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) > 12) tap = null;
+});
+const endPt = ev => {
+  if (ev.type === 'pointerup' && tap && tap.id === ev.pointerId){ const r = cv.getBoundingClientRect(); onTap(ev.clientX - r.left, ev.clientY - r.top); }
+  if (tap && tap.id === ev.pointerId) tap = null;
+  pts.delete(ev.pointerId);
+};
+cv.addEventListener('pointerup', endPt); cv.addEventListener('pointercancel', endPt);
+cv.addEventListener('wheel', ev => { ev.preventDefault(); setZoom(viewSpan * (1 + ev.deltaY * 0.0012)); }, { passive:false });
+cv.addEventListener('contextmenu', ev => ev.preventDefault());
+
+/* ================= loop ================= */
+let last = performance.now(), acc = 0, uiT = 0;
+function frame(now){
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  acc += dt * TIME_SCALE;
+  const before = order.type;
+  while (acc >= STEP){ update(STEP); acc -= STEP; }
+  if (order.type !== before) updateControls();
+  render();
+  uiT -= dt; if (uiT <= 0){ updateHud(); uiT = 0.15; }
+  requestAnimationFrame(frame);
+}
+applyShip();
+updateControls();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

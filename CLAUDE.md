@@ -5,7 +5,7 @@
 
 ## Команды
 
-- `npm run dev` — запуск; прототипы доступны по `/prototype/world.html` и `/prototype/combat.html`
+- `npm run dev` — запуск; прототипы доступны по `/prototype/world.html`, `/prototype/combat.html` и `/prototype/flight.html`; `npm run dev -- --host` — то же с доступом с телефона в локальной сети
 - `npm test` — тесты (Vitest)
 - `npm run typecheck` — проверка типов
 - `npm run build` — сборка
