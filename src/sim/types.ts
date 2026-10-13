@@ -1,3 +1,5 @@
+import type { Rng } from './rng';
+
 /** Позиция в плоскости XZ, метры. */
 export interface Vec2 {
   x: number;
@@ -29,6 +31,8 @@ export interface Hull {
   warpDecel: number;
   /** прочность корпуса: сколько урона выдерживает */
   structure: number;
+  /** сигнатура, м: насколько крупной цель выглядит для турелей */
+  signature: number;
 }
 
 export interface TurretDef {
@@ -40,8 +44,10 @@ export interface TurretDef {
   cycle: number;
   /** дальность стрельбы, м */
   range: number;
-  /** скорость наведения: как быстро башня поворачивается к цели, рад/с */
+  /** скорость наведения: как быстро башня поворачивается к цели и как хорошо попадает по быстро смещающейся, рад/с */
   tracking: number;
+  /** калибр, м: по целям с сигнатурой меньше калибра турель попадает хуже */
+  signatureResolution: number;
 }
 
 export interface Turret {
@@ -133,7 +139,7 @@ export type Entity = SpaceObject | Ship;
 export type SimEvent =
   | { type: 'warpStart'; ship: string; target: string }
   | { type: 'warpEnd'; ship: string; target: string; duration: number }
-  | { type: 'shot'; ship: string; target: string; turret: number; damage: number; from: Vec2; to: Vec2 }
+  | { type: 'shot'; ship: string; target: string; turret: number; hit: boolean; chance: number; damage: number; from: Vec2; to: Vec2 }
   | { type: 'destroyed'; ship: string; name: string; by: string; pos: Vec2; size: number };
 
 export interface World {
@@ -146,6 +152,8 @@ export interface World {
   events: SimEvent[];
   debug: { instantWarp: boolean };
   player: Ship | null;
+  /** случайность симуляции (попадания) — только отсюда, с сидом */
+  rng: Rng;
 }
 
 export type PlayerWorld = World & { player: Ship };

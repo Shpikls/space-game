@@ -59,11 +59,17 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   const meshes = new Map<string, THREE.Object3D | null>();
   const shipMeshes = new Map<string, THREE.Group>();
   const TINT = { player: 0xa9b8c8, pirate: 0xb0584e } as Record<string, number>;
+  // как выглядят турели: размер башни, толщина трассера (px), вспышка у ствола
+  const TURRET_LOOK: Record<string, { size: number; width: number; muzzle: number }> = {
+    light: { size: 1, width: 3, muzzle: 0.07 },
+    heavy: { size: 1.7, width: 6, muzzle: 0.12 },
+  };
+  const lookOf = (key: string | undefined) => TURRET_LOOK[key ?? 'light'] ?? TURRET_LOOK.light!;
   // окружение, которое отражают корпуса кораблей (только они — планеты и станция светятся как раньше)
   const shipEnv = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
   function rebuildShipMesh(s: Ship) {
     const old = shipMeshes.get(s.id); if (old) scene.remove(old);
-    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e, s.turrets.length, shipEnv);
+    const m = buildShip(s.hull, TINT[s.faction] ?? 0xc4a27e, s.turrets.map((t) => lookOf(t.def.key).size), shipEnv);
     scene.add(m); shipMeshes.set(s.id, m);
   }
   function syncMeshes() {
@@ -103,11 +109,14 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   function handleEvents(events: SimEvent[]) {
     for (const e of events) {
       if (e.type === 'shot') {
-        // попадаем не точно в центр, а куда-то в корпус цели
+        // попадание — куда-то в корпус цели, промах — мимо, на 2,5–4 её размера в сторону
         const t = world.byId[e.target], size = t?.type === 'ship' ? t.hull.size : 40;
         const j = () => (Math.random() - 0.5) * size * 0.5;
+        const a = Math.random() * Math.PI * 2, miss = size * (2.5 + Math.random() * 1.5);
+        const hit: P3 = e.hit ? { x: j(), y: j() * 0.3, z: j() } : { x: Math.cos(a) * miss, y: (Math.random() - 0.5) * size, z: Math.sin(a) * miss };
+        const shooter = world.byId[e.ship], look = lookOf(shooter?.type === 'ship' ? shooter.turrets[e.turret]?.def.key : undefined);
         const from: P3 = locate.muzzle(e.ship, e.turret) ?? { x: e.from.x, y: 0, z: e.from.z };
-        shots.spawn({ shooter: e.ship, turret: e.turret, target: e.target, from, to: { x: e.to.x, y: 0, z: e.to.z }, hit: { x: j(), y: j() * 0.3, z: j() } });
+        shots.spawn({ shooter: e.ship, turret: e.turret, target: e.target, from, to: { x: e.to.x, y: 0, z: e.to.z }, hit, miss: !e.hit, width: look.width, muzzle: look.muzzle });
         continue;
       }
       if (e.type !== 'destroyed') continue;
