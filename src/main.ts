@@ -4,6 +4,7 @@ import { scenarioFromUrl } from './scenarios/url';
 import { createWorld, respawnPlayer } from './sim/world';
 import { step } from './sim/step';
 import { createDebug } from './ui/debug';
+import { createFoes } from './ui/foes';
 import { $ } from './ui/format';
 import { createHud } from './ui/hud';
 import { attachInput } from './ui/input';
@@ -18,7 +19,8 @@ const canvas = $<HTMLCanvasElement>('scene');
 const view = createSpaceView(canvas, world, world.player);
 const hud = createHud(world, () => { respawnPlayer(world); overview.invalidate(); });
 const overview = createOverview(world, hud.toast);
-const updateLabels = createLabels(world, view.project, overview.selected, overview.select);
+const updateLabels = createLabels(world, view.project, view.screenDir, overview.selected, overview.select);
+const updateFoes = createFoes(world, overview.selected, overview.select);
 const debug = createDebug(world, view, overview.invalidate);
 attachInput(canvas, world, view, hud.toast);
 if (scenario.debug) debug.open(true);
@@ -35,6 +37,7 @@ function frame(now: number) {
   const wi = view.render(dt);
   $('veil').style.opacity = (wi * 0.9).toFixed(3);
   updateLabels();
+  updateFoes();
   hud.update();
   slow += dt;
   if (slow > 0.25) { slow = 0; overview.refresh(); }

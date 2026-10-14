@@ -1,33 +1,69 @@
 import { GRID_RANGE } from '../sim/constants';
 import type { Entity, PlayerWorld } from '../sim/types';
-import { isLocked, lockProgress } from '../sim/lock';
 import { surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
 import { glyph, isHostile } from './glyphs';
+import { applyThreat, threatOf } from './threat';
 
 type Project = (rx: number, rz: number) => { x: number; y: number } | null;
+type ScreenDir = (rx: number, rz: number) => { x: number; y: number };
 
-/** Метки объектов поверх сцены: значок, у крупных — имя, у выбранного — расстояние. Тап по метке выбирает объект. */
-export function createLabels(world: PlayerWorld, project: Project, selected: () => string | null, select: (id: string) => void) {
+// Стрелка к врагу за краем экрана стоит на столько пикселей внутри края
+const EDGE_INSET = 22;
+const ARROW = `<svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2.5 12.5 7 2 11.5 4.5 7Z" fill="currentColor"/></svg>`;
+
+/**
+ * Метки объектов поверх сцены: значок, у крупных — имя, у выбранного — расстояние. Тап по метке выбирает объект.
+ * Враг рядом, но за краем экрана — стрелка у края в его сторону (тоже выбирает по тапу).
+ */
+export function createLabels(world: PlayerWorld, project: Project, screenDir: ScreenDir, selected: () => string | null, select: (id: string) => void) {
   const player = world.player;
-  const labelsEl = $('labels'), labels = new Map<string, HTMLElement>();
+  const labelsEl = $('labels'), labels = new Map<string, HTMLElement>(), arrows = new Map<string, HTMLElement>();
   labelsEl.addEventListener('click', (e) => {
-    const l = (e.target as HTMLElement).closest<HTMLElement>('.lbl'); if (l) select(l.dataset.id!);
+    const l = (e.target as HTMLElement).closest<HTMLElement>('.lbl,.edge'); if (l) select(l.dataset.id!);
   });
   const entities = (): Entity[] => [...world.objects, ...world.ships.filter((s) => s !== player)];
 
+  /** Ставит стрелку к врагу e у края экрана; dx, dy — направление от центра экрана. */
+  function placeArrow(e: Entity, dx: number, dy: number, w: number, h: number) {
+    let a = arrows.get(e.id);
+    if (!a) {
+      a = document.createElement('div'); a.className = 'edge'; a.dataset.id = e.id; a.innerHTML = ARROW;
+      a.setAttribute('aria-label', e.name);
+      labelsEl.appendChild(a); arrows.set(e.id, a);
+    }
+    const cx = w / 2, cy = h / 2;
+    // луч из центра до прямоугольника, отступающего от краёв на EDGE_INSET
+    const tx = dx > 0 ? (w - EDGE_INSET - cx) / dx : dx < 0 ? (EDGE_INSET - cx) / dx : Infinity;
+    const ty = dy > 0 ? (h - EDGE_INSET - cy) / dy : dy < 0 ? (EDGE_INSET - cy) / dy : Infinity;
+    const t = Math.min(tx, ty);
+    a.style.display = '';
+    a.style.transform = `translate(${(cx + dx * t).toFixed(1)}px,${(cy + dy * t).toFixed(1)}px)`;
+    (a.firstElementChild as HTMLElement).style.transform = `rotate(${Math.atan2(dy, dx).toFixed(3)}rad)`;
+    applyThreat(a, e.type === 'ship' ? threatOf(player, e) : null);
+    a.classList.toggle('sel', e.id === selected());
+  }
+
   return function updateLabels() {
-    const w = window.innerWidth, h = window.innerHeight, seen = new Set<string>();
+    const w = window.innerWidth, h = window.innerHeight, seen = new Set<string>(), pointed = new Set<string>();
     const sel = selected();
     for (const e of entities()) {
       const d = surfaceDistance(player, e);
       const celestial = e.type !== 'ship' && !!e.celestial;
       const show = celestial || d <= GRID_RANGE;
       if (!show) continue;
-      const pt = project(e.pos.x - player.pos.x, e.pos.z - player.pos.z);
-      if (!pt) continue;
-      const { x, y } = pt;
-      if (x < -40 || x > w + 40 || y < -40 || y > h + 40) continue;
+      const rx = e.pos.x - player.pos.x, rz = e.pos.z - player.pos.z;
+      const pt = project(rx, rz);
+      const onScreen = !!pt && pt.x >= -40 && pt.x <= w + 40 && pt.y >= -40 && pt.y <= h + 40;
+      if (!onScreen) {
+        if (isHostile(e) && !player.dead) {
+          // перед камерой — по точке на экране, за спиной — по направлению в системе камеры
+          const dir = pt ? { x: pt.x - w / 2, y: pt.y - h / 2 } : screenDir(rx, rz);
+          if (dir.x || dir.y) { placeArrow(e, dir.x, dir.y, w, h); pointed.add(e.id); }
+        }
+        continue;
+      }
+      const { x, y } = pt!;
       seen.add(e.id);
       let l = labels.get(e.id);
       if (!l) {
@@ -40,14 +76,14 @@ export function createLabels(world: PlayerWorld, project: Project, selected: () 
       l.classList.toggle('named', (celestial && e.type !== 'station') || (e.type === 'station' && d > GRID_RANGE) || isHostile(e));
       l.classList.toggle('sel', e.id === sel);
       if (e.id === sel) l.querySelector('.d')!.textContent = fmtDist(d);
-      // захват: враг захватывает тебя (круг), ты захватываешь его (квадрат)
-      const aimsAtMe = e.type === 'ship' && e.attack === player.id && !e.dead;
-      l.classList.toggle('locking-me', aimsAtMe && !isLocked(e) && lockProgress(e) > 0);
-      l.classList.toggle('locked-me', aimsAtMe && isLocked(e));
-      const mine = player.attack === e.id;
-      l.classList.toggle('my-locking', mine && !isLocked(player));
-      l.classList.toggle('my-locked', mine && isLocked(player));
+      // захват: враг захватывает тебя (круг), ты захватываешь его (рамка)
+      applyThreat(l, e.type === 'ship' ? threatOf(player, e) : null);
     }
     for (const [id, l] of labels) if (!seen.has(id)) l.style.display = 'none';
+    for (const [id, a] of arrows) {
+      if (pointed.has(id)) continue;
+      if (world.byId[id]) a.style.display = 'none';
+      else { a.remove(); arrows.delete(id); }
+    }
   };
 }

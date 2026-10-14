@@ -28,6 +28,8 @@ export interface SpaceView {
   yawAt(clientX: number, clientY: number): number | null;
   /** позиция относительно игрока → точка на экране (null — за камерой) */
   project(rx: number, rz: number): { x: number; y: number } | null;
+  /** направление на экране от центра (корабля игрока) к точке — и когда она за камерой; для стрелок к врагам за краем */
+  screenDir(rx: number, rz: number): { x: number; y: number };
   /** события симуляции, которые видно в сцене: выстрелы и взрывы */
   handleEvents(events: SimEvent[]): void;
   /** кадр: расставить меши относительно игрока и нарисовать. Возвращает силу эффекта варпа 0…1. */
@@ -161,6 +163,12 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     return { x: ((tmpV.x + 1) / 2) * window.innerWidth, y: ((1 - tmpV.y) / 2) * window.innerHeight };
   }
 
+  function screenDir(rx: number, rz: number) {
+    // в системе камеры x — вправо, y — вверх: знаки верны и для точки за спиной
+    tmpV.set(rx, 0, rz).applyMatrix4(camera.matrixWorldInverse);
+    return { x: tmpV.x, y: -tmpV.y };
+  }
+
   function render(dt: number): number {
     // Всё рисуется относительно корабля игрока (floating origin): так не теряется точность на расстояниях в а. е.
     syncMeshes();
@@ -219,6 +227,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     handleEvents,
     yawAt,
     project,
+    screenDir,
     render,
   };
 }

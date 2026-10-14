@@ -24,6 +24,9 @@ const HOSTILE_SHIP = `<path d="M7 2 12 11.5H2Z" fill="#ff7a6b" fill-opacity=".35
 /** Враг — корабль пиратов. */
 export const isHostile = (e: Entity) => e.type === 'ship' && e.faction === 'pirate';
 
+/** Короткое имя для тесных мест: у «Брулер «Оса»» — «Оса». */
+export const shortName = (name: string) => /«(.+?)»/.exec(name)?.[1] ?? name;
+
 /** Значок объекта для обзора и меток; враги — красные. */
 export function glyph(e: Entity, size = 14): string {
   return `<svg width="${size}" height="${size}" viewBox="0 0 14 14" aria-hidden="true">${isHostile(e) ? HOSTILE_SHIP : BODY[e.type]}</svg>`;
