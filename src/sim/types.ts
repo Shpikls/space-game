@@ -166,6 +166,10 @@ export interface AiState {
   def: EnemyDef;
   state: 'idle' | 'alert' | 'engage' | 'flee' | 'gone';
   timer: number;
+  /** группа: заметил игрока один — поднимаются все */
+  group?: string;
+  /** в него выстрелили — заметит игрока на любом расстоянии */
+  provoked?: boolean;
 }
 
 export type Entity = SpaceObject | Ship;

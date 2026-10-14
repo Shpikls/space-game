@@ -32,6 +32,8 @@ export interface SpaceView {
   screenDir(rx: number, rz: number): { x: number; y: number };
   /** события симуляции, которые видно в сцене: выстрелы и взрывы */
   handleEvents(events: SimEvent[]): void;
+  /** выбранный объект: у врага в покое и его группы видны кольца обнаружения */
+  setMarked(id: string | null): void;
   /** кадр: расставить меши относительно игрока и нарисовать. Возвращает силу эффекта варпа 0…1. */
   render(dt: number): number;
 }
@@ -137,6 +139,26 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
   rangeRing.frustumCulled = false;
   scene.add(rangeRing);
 
+  // Кольца обнаружения выбранного врага и его группы, пока они не заметили игрока: залетишь внутрь — нападут
+  const aggroGeo = circleGeometry(128);
+  const aggroMat = new THREE.LineBasicMaterial({ color: 0xf0b860, transparent: true, opacity: 0.55, depthWrite: false });
+  const aggroRings: THREE.LineLoop[] = [];
+  let marked: string | null = null;
+  function updateAggroRings(p: Vec2) {
+    const e = marked ? world.byId[marked] : undefined;
+    const g = e?.type === 'ship' ? e.ai?.group : undefined;
+    const show = e?.type === 'ship' && e.ai
+      ? world.ships.filter((s) => (s === e || (g && s.ai?.group === g)) && !s.dead && s.ai!.state === 'idle') : [];
+    while (aggroRings.length < show.length) {
+      const r = new THREE.LineLoop(aggroGeo, aggroMat); r.frustumCulled = false; scene.add(r); aggroRings.push(r);
+    }
+    aggroRings.forEach((r, i) => {
+      const s = show[i];
+      r.visible = !!s && !player.warp;
+      if (s) { r.position.set(s.pos.x - p.x, 0, s.pos.z - p.z); r.scale.setScalar(s.ai!.def.aggro); }
+    });
+  }
+
   const cam: OrbitCam = { yaw: -2.5, pitch: 0.3, dist: player.hull.size * 7 };
   function placeCamera() {
     const cp = Math.cos(cam.pitch);
@@ -207,6 +229,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     const range = weaponRange(player);
     rangeRing.visible = !!player.attack && range > 0 && !player.warp;
     rangeRing.scale.setScalar(range);
+    updateAggroRings(p);
 
     // Интенсивность варпа: логарифм отношения скорости к обычной
     let wi = 0;
@@ -225,6 +248,7 @@ export function createSpaceView(canvas: HTMLCanvasElement, world: World, player:
     camLimits: () => [player.hull.size * 1.6, 4e6],
     rebuildShipMesh,
     handleEvents,
+    setMarked(id) { marked = id; },
     yawAt,
     project,
     screenDir,
