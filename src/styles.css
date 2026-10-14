@@ -15,6 +15,7 @@
   --chip:rgba(40,60,90,.08);
   --hostile:#c2413a;
   --warn:#9a610a;
+  --good:#2f8a4e;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -30,6 +31,7 @@
     --chip:rgba(156,196,255,.08);
     --hostile:#ff7a6b;
     --warn:#f0b860;
+    --good:#5fd08a;
   }
 }
 :root[data-theme="dark"]{
@@ -45,6 +47,7 @@
   --chip:rgba(156,196,255,.08);
   --hostile:#ff7a6b;
   --warn:#f0b860;
+  --good:#5fd08a;
 }
 *,*::before,*::after{box-sizing:inherit}
 html,body{height:100%;margin:0;overflow:hidden}
@@ -144,6 +147,30 @@ body{
 .overlay h2{margin:0 0 8px;font-size:20px}
 .overlay p{margin:0 0 14px;color:var(--dim)}
 .overlay .btn{width:100%}
+/* стартовый экран, список боёв, подготовка, итог */
+#screen .card{width:min(400px,100%);max-width:none;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;
+  text-align:left;padding:18px 16px 16px}
+#screen h2{font-size:22px;margin:0 0 4px}
+#screen h2.win{color:var(--good)}
+#screen h2.loss{color:var(--hostile)}
+#screen .sub{margin:0 0 12px;font-size:14px}
+#screen h3{font-size:13px;font-weight:500;color:var(--dim);margin:14px 0 6px}
+#screen .seg{display:flex;gap:6px}
+#screen .seg .btn{flex:1;width:auto;padding:9px 6px}
+#screen .note{font-size:12.5px;margin:6px 0 0}
+#screen .stack{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+#screen .btn.big{min-height:48px;font-size:16px}
+#screen .who{margin:0;padding-left:18px;font-size:13.5px;line-height:1.4}
+#screen .who li+li{margin-top:4px}
+.pick{appearance:none;display:block;width:100%;text-align:left;font:inherit;color:var(--text);cursor:pointer;
+  padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--chip)}
+.pick:active{background:var(--sel)}
+.pick:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pick b{display:block;font-size:15px;font-weight:600}
+.pick span{display:block;font-size:13px;color:var(--dim);margin-top:2px}
+.res{width:100%;border-collapse:collapse;font-size:14px}
+.res td{padding:5px 0;border-bottom:1px solid var(--line)}
+.res td:last-child{text-align:right}
 #status.attacking #attackLine{display:block}
 .btn{appearance:none;border:1px solid var(--line);background:var(--chip);color:var(--text);
   font:inherit;font-size:14px;border-radius:9px;padding:9px 12px;min-height:40px;cursor:pointer;white-space:nowrap}

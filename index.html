@@ -69,6 +69,9 @@
   </div>
 </div>
 
+<!-- стартовый экран, список боёв, подготовка, итог боя — разметку рисует src/ui/screens.ts -->
+<div id="screen" class="overlay" role="dialog" aria-modal="true" aria-label="Меню" hidden></div>
+
 <aside id="debug" aria-label="Отладка">
   <h2>Отладка <button class="btn" id="debugClose">Закрыть</button></h2>
   <h3>Корпус</h3>
@@ -80,12 +83,12 @@
   <h3>Варп</h3>
   <div class="seg"><button class="btn" id="instantBtn">Мгновенный варп</button></div>
   <h3>Бой</h3>
-  <div class="seg"><button class="btn" id="pirateBtn">Вернуть пиратов</button><button class="btn" id="hurtBtn">Получить 500 урона</button><button class="btn" id="repairBtn">Починить</button></div>
+  <div class="seg"><button class="btn" id="pirateBtn">Вернуть пиратов</button><button class="btn" id="hurtBtn">Получить 500 урона</button><button class="btn" id="repairBtn">Починить</button><button class="btn" id="fightAgainBtn">Бой заново</button><button class="btn" id="menuBtn">В меню</button></div>
   <h3>Перенестись</h3>
   <div class="seg" id="tpSeg"></div>
   <h3>Характеристики корабля</h3>
   <table id="stats"></table>
-  <p>Параметры в адресе: ?ship=frigate|cruiser|battleship, ?gun=light|heavy, ?at=station|belt|signal|p3|pirate1, ?speed=4, ?debug=1</p>
+  <p>Параметры в адресе: ?ship=frigate|cruiser|battleship, ?gun=light|heavy, ?at=station|belt|signal|p3|pirate1, ?speed=4, ?debug=1, ?scenario=duel|brawler|sniper|swarm (с ship или gun — сразу вылет). Без параметров — стартовый экран.</p>
 </aside>
 
 <script type="module" src="/src/main.ts"></script>

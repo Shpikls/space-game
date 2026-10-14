@@ -16,5 +16,8 @@ export function fmtSpeed(v: number): string {
 
 export const fmtSec = (s: number) => Math.round(s) + ' с';
 
+/** Время как на часах: 1:05. */
+export const fmtClock = (s: number) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
 /** Элемент страницы по id; разметка лежит в index.html. */
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;

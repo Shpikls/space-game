@@ -14,7 +14,8 @@ export interface Hud {
   handleEvents(events: SimEvent[]): void;
 }
 
-export function createHud(world: PlayerWorld, onRespawn: () => void): Hud {
+/** showLost — показывать ли экран гибели (в бою-задаче вместо него итог боя). */
+export function createHud(world: PlayerWorld, onRespawn: () => void, showLost: () => boolean = () => true): Hud {
   const player = world.player;
   const statusEl = $('status');
 
@@ -92,7 +93,7 @@ export function createHud(world: PlayerWorld, onRespawn: () => void): Hud {
   function handleEvents(events: SimEvent[]) {
     for (const e of events) {
       if (e.type === 'destroyed' && e.by === 'player') toast(e.name + ' уничтожен');
-      if (e.type === 'destroyed' && e.ship === 'player') {
+      if (e.type === 'destroyed' && e.ship === 'player' && showLost()) {
         const killer = world.byId[e.by];
         $('lostText').textContent = (killer ? killer.name + ' уничтожил ваш ' : 'Ваш ') + player.hull.name.toLowerCase() + '. Новый корабль ждёт на станции.';
         lost.hidden = false;
