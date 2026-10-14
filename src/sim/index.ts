@@ -4,6 +4,7 @@ export * from './damage';
 export * from './enemies';
 export * from './constants';
 export * from './hulls';
+export * from './lock';
 export * from './math';
 export * from './measure';
 export * from './orders';

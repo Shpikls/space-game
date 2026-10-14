@@ -14,6 +14,7 @@
   --sel:rgba(44,100,190,.14);
   --chip:rgba(40,60,90,.08);
   --hostile:#c2413a;
+  --warn:#9a610a;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -28,6 +29,7 @@
     --sel:rgba(156,196,255,.15);
     --chip:rgba(156,196,255,.08);
     --hostile:#ff7a6b;
+    --warn:#f0b860;
   }
 }
 :root[data-theme="dark"]{
@@ -42,6 +44,7 @@
   --sel:rgba(156,196,255,.15);
   --chip:rgba(156,196,255,.08);
   --hostile:#ff7a6b;
+  --warn:#f0b860;
 }
 *,*::before,*::after{box-sizing:inherit}
 html,body{height:100%;margin:0;overflow:hidden}
@@ -64,6 +67,16 @@ body{
 .lbl.sel svg{filter:drop-shadow(0 0 3px rgba(156,196,255,.9))}
 .lbl .d{color:rgba(190,205,222,.75);margin-left:4px}
 .lbl svg{flex:none}
+/* Захват на метках: круг — этот враг захватывает тебя (мигает жёлтым, захватил — красный),
+   квадрат — твой захват (мигает, пока идёт) */
+.lbl::before,.lbl::after{content:'';position:absolute;left:14px;top:50%;pointer-events:none;display:none}
+.lbl::before{width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:1.5px solid #ff7a6b}
+.lbl::after{width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:4px;border:1.5px solid rgba(156,196,255,.95)}
+.lbl.locking-me::before,.lbl.locked-me::before,.lbl.my-locking::after,.lbl.my-locked::after{display:block}
+.lbl.locking-me::before{border-color:#f0b860;border-style:dashed;animation:blink .7s steps(2,jump-none) infinite}
+.lbl.locking-me .t{color:#f0b860}
+.lbl.my-locking::after{border-style:dashed;animation:blink 1s steps(2,jump-none) infinite}
+@keyframes blink{50%{opacity:.25}}
 
 .hud{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px 0;
   display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
@@ -87,6 +100,14 @@ body{
 #attackLine{display:none;font-size:13px;color:var(--hostile);margin-top:2px}
 #threatLine{display:none;font-size:13px;color:var(--hostile);margin-top:2px;font-weight:600}
 #status.threatened #threatLine{display:block}
+/* захват: свой — полоской под строкой атаки, чужой (тебя захватывают) — жёлтым предупреждением */
+#myLockMeter,#warnLine,#theirLockMeter{display:none}
+#myLockMeter,#theirLockMeter{margin-top:4px}
+#myLockBar{background:var(--hostile)}
+#status.locking #myLockMeter{display:block}
+#warnLine{font-size:13px;color:var(--warn);margin-top:4px;font-weight:600}
+#theirLockBar{background:var(--warn)}
+#status.warned #warnLine,#status.warned #theirLockMeter{display:block}
 /* три полоски прочности: щит, броня, корпус */
 .layers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:7px;font-size:11.5px;color:var(--dim)}
 .layers[hidden]{display:none}
@@ -183,4 +204,5 @@ body{
 .ripple{position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border:2px solid rgba(156,196,255,.85);border-radius:50%;
   pointer-events:none;animation:rip .6s ease-out forwards}
 @keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.4);opacity:0}}
-@media (prefers-reduced-motion: reduce){.ripple{animation:none;opacity:0}#debug{transition:none}}
+@media (prefers-reduced-motion: reduce){.ripple{animation:none;opacity:0}#debug{transition:none}
+  .lbl.locking-me::before,.lbl.my-locking::after{animation:none}}

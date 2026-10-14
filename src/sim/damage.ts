@@ -36,6 +36,7 @@ export function damageShip(world: World, t: Ship, dmg: number, by: string): void
   t.dead = true;
   t.speed = 0;
   t.attack = null;
+  t.lock = null;
   world.events.push({ type: 'destroyed', ship: t.id, name: t.name, by, pos: { ...t.pos }, size: t.hull.size });
   const wreck: SpaceObject = {
     id: `wreck-${t.id}-${Math.round(world.time * 1000)}`, name: 'Обломки: ' + t.name, type: 'wreck', local: true,
