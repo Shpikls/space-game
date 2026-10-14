@@ -98,7 +98,7 @@ body{
 .foe .mark:empty{display:none}
 .foe .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .foe .d{color:var(--dim);font-size:12px}
-.foe .hp{margin-top:6px;gap:3px}
+.foe .hp{margin-top:6px}
 .foe .hp i{height:3px}
 /* ход захвата: твой — синей полоской сверху, чужой (тебя захватывают) — жёлтой снизу */
 .foe .lk{position:absolute;left:0;right:0;height:3px;display:none}
@@ -130,8 +130,8 @@ body{
 #warpBox .meter i{background:var(--warp)}
 #status.warping #warpBox{display:block}
 #attackLine{display:none;font-size:13px;color:var(--hostile);margin-top:2px}
-/* прочность — три тонкие полоски без подписей: щит, броня, корпус */
-.hp{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px}
+/* прочность — полоска из трёх частей без подписей: корпус, броня, щит; убывает справа налево */
+.hp{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:8px}
 .hp i{display:block;height:4px;border-radius:2px;background:var(--chip);overflow:hidden}
 .hp b{display:block;height:100%}
 .hp .shield b{background:#5aa6ff}
