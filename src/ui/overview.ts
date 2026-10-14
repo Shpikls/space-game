@@ -56,7 +56,9 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
     const near = d <= GRID_RANGE;
     $('selName').innerHTML = `<span>${e.name}</span><small>${fmtDist(d)}</small>`;
     const hostile = isHostile(e), attacking = player.attack === e.id;
-    const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp + '|' + attacking;
+    // враг ещё не заметил — подсказать, с какого расстояния заметит
+    const unaware = e.type === 'ship' && e.ai?.state === 'idle';
+    const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp + '|' + attacking + '|' + unaware;
     if (key === actionsKey) return;
     actionsKey = key;
     // [приказ, значение, подпись, класс кнопки]
@@ -65,7 +67,9 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
       $('selHint').textContent = TYPE_NAME[e.type] + '. В варпе приказы недоступны.';
     } else {
       // коротко: кто это; что можно сделать — видно по кнопкам. Прочность врага — в полоске врагов
-      $('selHint').textContent = e.type === 'ship' && e.ai ? e.ai.def.role : hostile ? 'враг' : TYPE_NAME[e.type];
+      $('selHint').textContent = e.type === 'ship' && e.ai
+        ? e.ai.def.role + (unaware ? ' · замечает с ' + Math.round(e.ai.def.aggro / 1000) + ' км' : '')
+        : hostile ? 'враг' : TYPE_NAME[e.type];
       if (hostile) chips.push(attacking ? ['ceasefire', 0, 'Прекратить огонь', 'attack'] : ['attack', 0, 'Атаковать', 'attack']);
       if (warpable) chips.push(['warp', 0, 'Варп на 0 км', 'primary'], ['warp', 10e3, 'на 10 км', 'primary'], ['warp', 50e3, 'на 50 км', 'primary']);
       if (near) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIGHTS } from '../src/scenarios/fights';
 import {
-  ENEMIES, HULLS, TURRETS, createWorld, damageShip, endFight, issueOrder, maxHp, setAttack, startFight, step, surfaceDistance, totalHp, updateFight,
+  ENEMIES, HULLS, TURRETS, createWorld, damageShip, endFight, fightPoint, issueOrder, maxHp, setAttack, startFight, step, surfaceDistance, totalHp, updateFight, weaponRange,
   type Fight, type FightResult, type PlayerWorld, type Ship,
 } from '../src/sim';
 
@@ -129,5 +129,37 @@ describe('бой как задача', () => {
     expect(surfaceDistance(w.player, w.byId.station!)).toBeLessThan(10e3);
     expect(w.player.hull).toBe(HULLS.battleship);
     expect(ENEMIES.jackal.aggro).toBeLessThan(surfaceDistance(w.player, w.byId.pirate1!));
+  });
+
+  it('три группы: влетишь в середину — нападают все и линкор погибает; вытягиваешь по одной — побеждает', () => {
+    /** Вытягивание: подлететь к ближайшей паре на дальность турели, выстрелить и ждать, пока она прилетит. */
+    function pull(w: PlayerWorld, f: Fight) {
+      if (w.player.attack) return;
+      const alive = enemies(w, f).filter((s): s is Ship => !!s && !s.dead && !s.warp)
+        .sort((a, b) => surfaceDistance(w.player, a) - surfaceDistance(w.player, b));
+      const t = alive.find((s) => s.ai!.state !== 'idle') ?? alive[0];
+      if (!t) return;
+      if (t.ai!.state !== 'idle' || surfaceDistance(w.player, t) < weaponRange(w.player) - 2e3) {
+        issueOrder(w, w.player, { type: 'stop' }); setAttack(w, w.player, t.id);
+      } else if (w.player.order.type !== 'approach') issueOrder(w, w.player, { type: 'approach', target: t.id });
+    }
+    const run = (dive: boolean) => {
+      const w = createWorld(), f = startFight(w, FIGHTS.groups, 'battleship', 'light');
+      if (dive) w.player.pos = fightPoint(w, FIGHTS.groups);
+      let most = 0;
+      for (let t = 0; t < 900; t += 0.1) {
+        pull(w, f);
+        step(w, 0.1);
+        most = Math.max(most, enemies(w, f).filter((s) => s && !s.dead && s.ai!.state !== 'idle').length);
+        const r = updateFight(w, f, w.events.splice(0));
+        if (r) return { r, most };
+      }
+      return { r: null, most };
+    };
+    const dive = run(true), careful = run(false);
+    expect(dive.most).toBe(6);
+    expect(dive.r?.win).toBe(false);
+    expect(careful.most).toBe(2);
+    expect(careful.r?.win).toBe(true);
   });
 });

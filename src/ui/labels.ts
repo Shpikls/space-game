@@ -73,11 +73,12 @@ export function createLabels(world: PlayerWorld, project: Project, screenDir: Sc
       }
       l.style.display = '';
       l.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-      l.classList.toggle('named', (celestial && e.type !== 'station') || (e.type === 'station' && d > GRID_RANGE) || isHostile(e));
+      // имена врагов — в полоске врагов; в космосе подписан только тот, кто захватывает тебя (жёлтым), и выбранный
+      const threat = e.type === 'ship' ? threatOf(player, e) : null;
+      l.classList.toggle('named', (celestial && e.type !== 'station') || (e.type === 'station' && d > GRID_RANGE) || !!threat?.lockingMe);
       l.classList.toggle('sel', e.id === sel);
       if (e.id === sel) l.querySelector('.d')!.textContent = fmtDist(d);
-      // захват: враг захватывает тебя (круг), ты захватываешь его (рамка)
-      applyThreat(l, e.type === 'ship' ? threatOf(player, e) : null);
+      applyThreat(l, threat);
     }
     for (const [id, l] of labels) if (!seen.has(id)) l.style.display = 'none';
     for (const [id, a] of arrows) {

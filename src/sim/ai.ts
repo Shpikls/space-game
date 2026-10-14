@@ -4,6 +4,20 @@ import { issueOrder } from './orders';
 import type { Order, Ship, World } from './types';
 import { surfaceDistance } from './world';
 
+/** Ближе этого заметивший враг не отпускает игрока (или полторы дальности обнаружения, если она больше), м. */
+export const LEASH = 60e3;
+const leash = (s: Ship) => Math.max(s.ai!.def.aggro * 1.5, LEASH);
+
+/** Группа поднимается целиком: один заметил игрока — остальные из его группы тоже, каждый со своим временем реакции. */
+function alertGroup(world: World, s: Ship) {
+  const g = s.ai!.group;
+  if (!g) return;
+  for (const o of world.ships) {
+    if (o === s || o.dead || o.ai?.group !== g || o.ai.state !== 'idle') continue;
+    o.ai.state = 'alert'; o.ai.timer = o.ai.def.reaction;
+  }
+}
+
 /** Приказ движения по типу врага: стоять, держать дистанцию или кружить вокруг цели. */
 function engageOrder(s: Ship, targetId: string): Order {
   const d = s.ai!.def;
@@ -29,7 +43,8 @@ function disengage(world: World, s: Ship) {
 /**
  * ИИ врага — конечный автомат, который отдаёт те же приказы, что и игрок:
  * покой → заметил (ждёт время реакции) → бой (приказ движения по типу + атака) → бегство в варп.
- * Игрок погиб, ушёл в варп или улетел далеко — враг возвращается в покой.
+ * Замечает игрока ближе дальности обнаружения или когда в него выстрелили; заметил — поднимается вся его группа.
+ * Игрок погиб, ушёл в варп или улетел дальше поводка — враг возвращается в покой.
  */
 export function stepAI(world: World, s: Ship, dt: number): void {
   const ai = s.ai;
@@ -39,10 +54,12 @@ export function stepAI(world: World, s: Ship, dt: number): void {
   const d = visible ? surfaceDistance(s, p) : Infinity;
   switch (ai.state) {
     case 'idle':
-      if (d <= ai.def.aggro) { ai.state = 'alert'; ai.timer = ai.def.reaction; }
+      if (visible && (d <= ai.def.aggro || ai.provoked)) { ai.state = 'alert'; ai.timer = ai.def.reaction; alertGroup(world, s); }
+      ai.provoked = false;
       break;
     case 'alert':
-      if (d > ai.def.aggro) { ai.state = 'idle'; break; }
+      // заметившего не по дальности (выстрел, тревога группы) держит поводок, а не дальность обнаружения
+      if (d > leash(s)) { ai.state = 'idle'; break; }
       ai.timer -= dt;
       if (ai.timer > 0) break;
       ai.state = 'engage';
@@ -51,7 +68,7 @@ export function stepAI(world: World, s: Ship, dt: number): void {
       break;
     case 'engage': {
       // улетел далеко, погиб или ушёл в варп — бой окончен
-      if (d > ai.def.aggro * 1.5) { disengage(world, s); break; }
+      if (d > leash(s)) { disengage(world, s); break; }
       if (ai.def.fleeBelow !== null && totalHp(s) < maxHp(s) * ai.def.fleeBelow) {
         const order = fleeOrder(world, s);
         if (order && issueOrder(world, s, order)) { setAttack(world, s, null); ai.state = 'flee'; break; }

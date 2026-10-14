@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { FIGHTS } from '../src/scenarios/fights';
 import {
-  ENEMIES, createWorld, damageShip, issueOrder, maxHp, spawnSignalPirates, step, surfaceDistance, teleport, totalHp,
+  ENEMIES, TURRETS, createWorld, damageShip, issueOrder, maxHp, offset, setAttack, spawnSignalPirates, startFight, step, surfaceDistance, teleport, totalHp,
   type PlayerWorld, type Ship,
 } from '../src/sim';
 
@@ -112,5 +113,51 @@ describe('ИИ врагов у сигнала', () => {
       expect(s.ai!.state).toBe('idle');
       expect(s.attack).toBeNull();
     }
+  });
+});
+
+describe('тревога: выстрел и группы', () => {
+  const groupOf = (w: PlayerWorld, g: string) => w.ships.filter((s) => s.ai?.group === g);
+
+  it('выстрел будит врага издалека: «Шакал» замечает тебя, хотя ты дальше его 20 км', () => {
+    const w = createWorld({ hull: 'frigate', gun: 'heavy', at: 'station' });
+    const jackal = w.byId.pirate1 as Ship, d = surfaceDistance(w.player, jackal);
+    expect(d).toBeGreaterThan(ENEMIES.jackal.aggro);
+    expect(d).toBeLessThan(TURRETS.heavy.range);
+    step(w, 5);
+    expect(jackal.ai!.state).toBe('idle');
+    setAttack(w, w.player, 'pirate1');
+    for (let t = 0; t < 20 && jackal.ai!.state === 'idle'; t += 0.1) step(w, 0.1);
+    expect(jackal.ai!.state).not.toBe('idle');
+    step(w, 0.5);
+    expect(jackal.attack).toBe('player');
+  });
+
+  it('группа поднимается целиком: подлетел к одной паре — нападает она, остальные пары в покое', () => {
+    const w = createWorld({ hull: 'battleship' });
+    startFight(w, FIGHTS.groups, 'battleship', 'light');
+    const a1 = w.byId['groups-1'] as Ship;
+    // ближе дальности обнаружения только к «А1», «А2» дальше
+    w.player.pos = offset(a1.pos, 12e3, 90);
+    step(w, 0.1);
+    expect(groupOf(w, 'А').map((s) => s.ai!.state)).toEqual(['alert', 'alert']);
+    step(w, 5);
+    expect(groupOf(w, 'А').every((s) => s.attack === 'player')).toBe(true);
+    for (const g of ['Б', 'В']) expect(groupOf(w, g).every((s) => s.ai!.state === 'idle')).toBe(true);
+  });
+
+  it('выстрел в одного будит всю его пару — так их вытягивают по одной', () => {
+    const w = createWorld();
+    startFight(w, FIGHTS.groups, 'cruiser', 'heavy');
+    const a1 = w.byId['groups-1'] as Ship;
+    expect(surfaceDistance(w.player, a1)).toBeGreaterThan(15e3);
+    issueOrder(w, w.player, { type: 'approach', target: a1.id });
+    for (let t = 0; t < 60 && surfaceDistance(w.player, a1) > 35e3; t += 0.1) step(w, 0.1);
+    issueOrder(w, w.player, { type: 'stop' });
+    setAttack(w, w.player, a1.id);
+    for (let t = 0; t < 20 && a1.ai!.state === 'idle'; t += 0.1) step(w, 0.1);
+    step(w, 0.1);
+    expect(groupOf(w, 'А').every((s) => s.ai!.state !== 'idle')).toBe(true);
+    for (const g of ['Б', 'В']) expect(groupOf(w, g).every((s) => s.ai!.state === 'idle')).toBe(true);
   });
 });

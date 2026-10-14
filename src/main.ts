@@ -45,6 +45,7 @@ function frame(now: number) {
   hud.handleEvents(events);
   screens.handleEvents(events);
   view.handleEvents(events);
+  view.setMarked(overview.selected());
   const wi = view.render(dt);
   $('veil').style.opacity = (wi * 0.9).toFixed(3);
   updateLabels();

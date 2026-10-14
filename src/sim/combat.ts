@@ -103,6 +103,7 @@ export function stepWeapons(world: World, s: Ship, dt: number): void {
     tr.cooldown = tr.def.cycle;
     const chance = hitChance(s, tr, t), hit = world.rng() < chance;
     world.events.push({ type: 'shot', ship: s.id, target: t.id, turret: i, hit, chance, damage: hit ? tr.def.damage : 0, from: { ...s.pos }, to: { ...t.pos } });
+    if (t.ai) t.ai.provoked = true; // в него стреляют — заметит, даже если стрелок далеко
     if (hit) damageShip(world, t, tr.def.damage, s.id);
     if (t.dead) break;
   }

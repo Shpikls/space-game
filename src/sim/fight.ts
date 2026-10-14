@@ -6,10 +6,14 @@ import { TURRETS, mountTurret, type TurretKey } from './turrets';
 import type { HullKey, PlayerWorld, Ship, SimEvent, Vec2, World } from './types';
 import { objectById, offset, respawnPlayer, spawnEnemy, spawnPirate, spawnSignalPirates } from './world';
 
-/** Враг в бою: тип, имя (если врагов одного типа несколько) и место относительно точки боя. */
+/** Враг в бою: тип, имя (если врагов одного типа несколько), группа и место относительно точки боя. */
 export interface FightEnemy {
   key: EnemyKey;
   name?: string;
+  /** группа: заметил один — нападают все */
+  group?: string;
+  /** своя дальность обнаружения, м (по умолчанию — из типа врага) */
+  aggro?: number;
   /** расстояние от точки боя, м, и направление, градусы */
   d: number;
   deg: number;
@@ -94,6 +98,8 @@ export function startFight(world: PlayerWorld, def: FightDef, hull: HullKey, gun
   const enemyIds = def.enemies.map((e, i) => {
     const s = spawnEnemy(world, e.key, `${def.key}-${i + 1}`, offset(at, e.d, e.deg), (e.deg + 180) * (Math.PI / 180));
     if (e.name) s.name = e.name;
+    if (e.group) s.ai!.group = e.group;
+    if (e.aggro) s.ai!.def = { ...s.ai!.def, aggro: e.aggro };
     return s.id;
   });
   const p = world.player;

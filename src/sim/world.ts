@@ -83,7 +83,7 @@ export function spawnEnemy(world: World, key: EnemyKey, id: string, pos: Vec2, y
   if (old && old.type === 'ship') {
     repairShip(old);
     Object.assign(old, { pos: { ...pos }, yaw, speed: 0, angVel: 0, warp: null, align: null, attack: null, lock: null, order: { type: 'stop' } });
-    if (old.ai) old.ai = { ...old.ai, state: 'idle', timer: 0 };
+    if (old.ai) old.ai = { ...old.ai, state: 'idle', timer: 0, provoked: false };
     return old;
   }
   const def = ENEMIES[key];
