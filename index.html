@@ -14,6 +14,7 @@
 <div id="labels"></div>
 
 <div class="hud">
+  <div id="hudLeft">
   <div id="status" class="card">
     <div class="row"><span id="hullName"></span><span id="speed"></span></div>
     <div id="state">Стоп</div>
@@ -35,6 +36,9 @@
       <div class="meter"><i id="warpBar"></i></div>
     </div>
     <button id="stopBtn" class="btn" data-stop>Стоп</button>
+  </div>
+  <!-- враги рядом: что делают, сколько до них, прочность; тап — выбрать -->
+  <div id="foes" hidden></div>
   </div>
   <button id="gear" class="btn" aria-label="Отладка">⚙</button>
 </div>
