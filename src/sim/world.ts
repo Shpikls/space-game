@@ -82,7 +82,7 @@ export function spawnEnemy(world: World, key: EnemyKey, id: string, pos: Vec2, y
   const old = world.byId[id];
   if (old && old.type === 'ship') {
     repairShip(old);
-    Object.assign(old, { pos: { ...pos }, yaw, speed: 0, angVel: 0, warp: null, align: null, attack: null, order: { type: 'stop' } });
+    Object.assign(old, { pos: { ...pos }, yaw, speed: 0, angVel: 0, warp: null, align: null, attack: null, lock: null, order: { type: 'stop' } });
     if (old.ai) old.ai = { ...old.ai, state: 'idle', timer: 0 };
     return old;
   }
@@ -121,7 +121,7 @@ export function respawnPlayer(world: World): void {
 export function addShip(world: World, id: string, name: string, hullKey: HullKey, pos: Vec2, yaw: number, faction: Faction): Ship {
   const s: Ship = { id, name, type: 'ship', faction, hull: HULLS[hullKey], pos: { x: pos.x, z: pos.z }, yaw, angVel: 0, speed: 0,
     order: { type: 'stop' }, warp: null, align: null, radius: 0,
-    shield: HULLS[hullKey].shield, armor: HULLS[hullKey].armor, structure: HULLS[hullKey].structure, turrets: [], attack: null, dead: false };
+    shield: HULLS[hullKey].shield, armor: HULLS[hullKey].armor, structure: HULLS[hullKey].structure, turrets: [], attack: null, lock: null, dead: false };
   world.ships.push(s); world.byId[id] = s; return s;
 }
 
@@ -147,7 +147,7 @@ export function teleport(world: World, s: Ship, id: string): void {
   const tgt: Entity = e && e !== s ? e : objectById(world, 'station')!;
   const extra = tgt.type === 'station' ? 5e3 : tgt.type === 'ship' ? 10e3 : 0;
   const p = landingPoint(tgt, { x: tgt.pos.x + 1e9, z: tgt.pos.z - 3e9 }, extra);
-  s.pos = p; s.warp = null; s.speed = 0; s.angVel = 0; s.order = { type: 'stop' }; s.align = null; s.attack = null;
+  s.pos = p; s.warp = null; s.speed = 0; s.angVel = 0; s.order = { type: 'stop' }; s.align = null; s.attack = null; s.lock = null;
   s.yaw = yawTo(tgt.pos.x - p.x, tgt.pos.z - p.z) + 1.1;
 }
 

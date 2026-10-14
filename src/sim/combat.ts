@@ -1,4 +1,5 @@
 import { damageShip } from './damage';
+import { isLocked, stepLock } from './lock';
 import { clamp, wrap, yawTo } from './math';
 import { AIM_TOLERANCE, slewRate } from './turrets';
 import type { Ship, Turret, World } from './types';
@@ -8,14 +9,15 @@ import { surfaceDistance } from './world';
 export const weaponRange = (s: Ship) => Math.max(0, ...s.turrets.map((t) => t.def.range));
 
 /**
- * Назначает цель атаки (null — прекратить огонь). Атака не трогает приказ движения:
- * куда лететь и кого бить — два независимых решения.
+ * Назначает цель атаки (null — прекратить огонь и снять захват). Атака не трогает приказ движения:
+ * куда лететь и кого бить — два независимых решения. Новая цель сначала захватывается, потом по ней стреляют.
  */
 export function setAttack(world: World, s: Ship, targetId: string | null): boolean {
   if (s.warp || s.dead) return false;
-  if (targetId === null) { s.attack = null; return true; }
+  if (targetId === null) { s.attack = null; s.lock = null; return true; }
   const t = world.byId[targetId];
   if (!t || t.type !== 'ship' || t === s || t.dead) return false;
+  if (s.attack !== targetId) s.lock = { target: targetId, progress: 0 };
   s.attack = targetId;
   return true;
 }
@@ -58,13 +60,14 @@ export function hitChance(s: Ship, tr: Turret, t: Ship): number {
   return Math.pow(0.5, term * term);
 }
 
-export type AttackStatus = 'none' | 'far' | 'aiming' | 'firing';
+export type AttackStatus = 'none' | 'locking' | 'far' | 'aiming' | 'firing';
 
-/** Что сейчас с атакой: нет цели, цель дальше дальности, башня наводится, ведётся огонь. */
+/** Что сейчас с атакой: нет цели, идёт захват, цель дальше дальности, башня наводится, ведётся огонь. */
 export function attackStatus(world: World, s: Ship): AttackStatus {
   const t = attackTarget(world, s);
   if (!t || s.turrets.length === 0) return 'none';
   const d = surfaceDistance(s, t);
+  if (!isLocked(s)) return d <= s.hull.lockRange ? 'locking' : 'far';
   const ready = s.turrets.filter((tr) => d <= tr.def.range);
   if (ready.length === 0) return 'far';
   const want = aimTo(s, t);
@@ -81,20 +84,22 @@ export function currentHitChance(world: World, s: Ship): number | null {
 }
 
 /**
- * Турели перезаряжаются всегда. Башня поворачивается к цели (без цели — обратно вперёд)
- * и стреляет, когда навелась, перезарядилась и цель в пределах дальности.
+ * Турели перезаряжаются всегда. Цель захватывается; башня поворачивается к ней уже во время захвата
+ * (без цели — обратно вперёд) и стреляет, когда цель захвачена, ствол навёлся, турель перезарядилась
+ * и цель в пределах дальности.
  */
 export function stepWeapons(world: World, s: Ship, dt: number): void {
   if (s.dead) return;
   for (const tr of s.turrets) tr.cooldown = Math.max(0, tr.cooldown - dt);
   const t = s.warp ? null : attackTarget(world, s);
   if (s.attack && !t && !s.warp) s.attack = null;
+  stepLock(s, t, dt);
   if (!t) { for (const tr of s.turrets) rotateTurret(tr, 0, dt); return; }
-  const want = aimTo(s, t), d = surfaceDistance(s, t);
+  const want = aimTo(s, t), d = surfaceDistance(s, t), locked = isLocked(s);
   for (let i = 0; i < s.turrets.length; i++) {
     const tr = s.turrets[i]!;
     rotateTurret(tr, want, dt);
-    if (tr.cooldown > 0 || d > tr.def.range || Math.abs(wrap(want - tr.aim)) > AIM_TOLERANCE) continue;
+    if (!locked || tr.cooldown > 0 || d > tr.def.range || Math.abs(wrap(want - tr.aim)) > AIM_TOLERANCE) continue;
     tr.cooldown = tr.def.cycle;
     const chance = hitChance(s, tr, t), hit = world.rng() < chance;
     world.events.push({ type: 'shot', ship: s.id, target: t.id, turret: i, hit, chance, damage: hit ? tr.def.damage : 0, from: { ...s.pos }, to: { ...t.pos } });
@@ -109,5 +114,5 @@ export function removeDead(world: World): void {
   if (gone.length === 0) return;
   for (const d of gone) delete world.byId[d.id];
   world.ships = world.ships.filter((s) => !gone.includes(s));
-  for (const s of world.ships) if (s.attack && !world.byId[s.attack]) s.attack = null;
+  for (const s of world.ships) if (s.attack && !world.byId[s.attack]) { s.attack = null; s.lock = null; }
 }

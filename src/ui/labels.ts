@@ -1,5 +1,6 @@
 import { GRID_RANGE } from '../sim/constants';
 import type { Entity, PlayerWorld } from '../sim/types';
+import { isLocked, lockProgress } from '../sim/lock';
 import { surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
 import { glyph, isHostile } from './glyphs';
@@ -39,6 +40,13 @@ export function createLabels(world: PlayerWorld, project: Project, selected: () 
       l.classList.toggle('named', (celestial && e.type !== 'station') || (e.type === 'station' && d > GRID_RANGE) || isHostile(e));
       l.classList.toggle('sel', e.id === sel);
       if (e.id === sel) l.querySelector('.d')!.textContent = fmtDist(d);
+      // захват: враг захватывает тебя (круг), ты захватываешь его (квадрат)
+      const aimsAtMe = e.type === 'ship' && e.attack === player.id && !e.dead;
+      l.classList.toggle('locking-me', aimsAtMe && !isLocked(e) && lockProgress(e) > 0);
+      l.classList.toggle('locked-me', aimsAtMe && isLocked(e));
+      const mine = player.attack === e.id;
+      l.classList.toggle('my-locking', mine && !isLocked(player));
+      l.classList.toggle('my-locked', mine && isLocked(player));
     }
     for (const [id, l] of labels) if (!seen.has(id)) l.style.display = 'none';
   };

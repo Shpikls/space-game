@@ -2,6 +2,7 @@ import type { SpaceView } from '../render/scene';
 import { TIME_SCALES } from '../scenarios/url';
 import { DEG } from '../sim/constants';
 import { HULLS, angAccel, isHullKey, linAccel } from '../sim/hulls';
+import { lockTimeVs } from '../sim/lock';
 import { measureWarp, type WarpMeasure } from '../sim/measure';
 import { TURRETS, isTurretKey, mountTurret, slewRate } from '../sim/turrets';
 import type { HullKey, PlayerWorld } from '../sim/types';
@@ -41,6 +42,8 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
       ['Броня', nf.format(h.armor)],
       ['Корпус', nf.format(h.structure)],
       ['Сигнатура', h.signature + ' м'],
+      ['Захват цели', Object.values(HULLS).map((t) => t.name.toLowerCase() + ' ' + lockTimeVs(h, t.signature).toFixed(1).replace('.', ',') + ' с').join(', ')],
+      ['Дальность захвата', nf.format(h.lockRange / 1000) + ' км'],
       ['Выравнивание, поворот 90°', m.a90.align.toFixed(1).replace('.', ',') + ' с'],
       ['Выравнивание, поворот 180°', m.a180.align.toFixed(1).replace('.', ',') + ' с'],
       ['Варп на 10 а. е.', fmtSec(m.a90.warp)],
