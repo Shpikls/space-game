@@ -38,7 +38,7 @@ export function createDebug(world: PlayerWorld, view: SpaceView, onTeleport: () 
       ['Разгон', Math.round(linAccel(h)) + ' м/с²'],
       ['Макс. скорость', h.maxSpeed + ' м/с'],
       ['Скорость варпа', h.warpSpeed + ' а. е./с'],
-      ['Прочность сейчас', [player.shield, player.armor, player.structure].map((v) => nf.format(Math.ceil(v))).join(' / ')],
+      ['Сейчас щит / броня / корпус', [player.shield, player.armor, player.structure].map((v) => nf.format(Math.ceil(v))).join(' / ')],
       ['Щит', nf.format(h.shield) + ', восстановление ' + h.shieldRecharge + ' с'],
       ['Броня', nf.format(h.armor)],
       ['Корпус', nf.format(h.structure)],
