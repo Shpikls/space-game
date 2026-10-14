@@ -2,6 +2,7 @@ export * from './ai';
 export * from './combat';
 export * from './damage';
 export * from './enemies';
+export * from './fight';
 export * from './constants';
 export * from './hulls';
 export * from './lock';

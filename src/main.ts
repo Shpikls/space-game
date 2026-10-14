@@ -1,6 +1,9 @@
 import './styles.css';
 import { createSpaceView } from './render/scene';
+import { isFightKey } from './scenarios/fights';
 import { scenarioFromUrl } from './scenarios/url';
+import { isHullKey } from './sim/hulls';
+import { isTurretKey } from './sim/turrets';
 import { createWorld, respawnPlayer } from './sim/world';
 import { step } from './sim/step';
 import { createDebug } from './ui/debug';
@@ -10,6 +13,7 @@ import { createHud } from './ui/hud';
 import { attachInput } from './ui/input';
 import { createLabels } from './ui/labels';
 import { createOverview } from './ui/overview';
+import { createScreens } from './ui/screens';
 
 const scenario = scenarioFromUrl(location.search);
 const world = createWorld({ hull: scenario.hull, gun: scenario.gun, at: scenario.at });
@@ -17,13 +21,19 @@ world.timeScale = scenario.timeScale;
 
 const canvas = $<HTMLCanvasElement>('scene');
 const view = createSpaceView(canvas, world, world.player);
-const hud = createHud(world, () => { respawnPlayer(world); overview.invalidate(); });
+const hud = createHud(world, () => { respawnPlayer(world); overview.invalidate(); }, () => !screens.fightActive());
 const overview = createOverview(world, hud.toast);
 const updateLabels = createLabels(world, view.project, view.screenDir, overview.selected, overview.select);
 const updateFoes = createFoes(world, overview.selected, overview.select);
 const debug = createDebug(world, view, overview.invalidate);
 attachInput(canvas, world, view, hud.toast);
+const screens = createScreens(world, view, overview.invalidate);
 if (scenario.debug) debug.open(true);
+// ?scenario= — бой: с корпусом или турелью в адресе сразу вылет, иначе подготовка. Без параметров — стартовый экран
+if (isFightKey(scenario.fight)) {
+  if (scenario.fit) screens.launch(scenario.fight, isHullKey(scenario.hull) ? scenario.hull : 'cruiser', isTurretKey(scenario.gun) ? scenario.gun : 'light');
+  else screens.prep(scenario.fight);
+} else if (!scenario.explicit) screens.menu();
 
 let last = performance.now(), slow = 0;
 function frame(now: number) {
@@ -33,6 +43,7 @@ function frame(now: number) {
   step(world, dt * world.timeScale);
   const events = world.events.splice(0);
   hud.handleEvents(events);
+  screens.handleEvents(events);
   view.handleEvents(events);
   const wi = view.render(dt);
   $('veil').style.opacity = (wi * 0.9).toFixed(3);
