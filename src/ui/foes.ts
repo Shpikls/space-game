@@ -4,9 +4,8 @@ import type { PlayerWorld, Ship } from '../sim/types';
 import { surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
 import { glyph, isHostile, shortName } from './glyphs';
+import { updateHp } from './layers';
 import { applyThreat, threatOf } from './threat';
-
-const LAYERS = ['shield', 'armor', 'structure'] as const;
 
 const setText = (el: Element, s: string) => { if (el.textContent !== s) el.textContent = s; };
 const setWidth = (el: HTMLElement, frac: number) => { el.style.width = (100 * Math.max(0, Math.min(1, frac))).toFixed(1) + '%'; };
@@ -35,7 +34,7 @@ export function createFoes(world: PlayerWorld, selected: () => string | null, se
         c = document.createElement('button');
         c.className = 'foe'; c.dataset.id = f.id; c.setAttribute('aria-label', f.name);
         c.innerHTML = `<span class="top"><span class="mark"></span>${glyph(f, 12)}<span class="n">${shortName(f.name)}</span><span class="d"></span></span>` +
-          `<span class="hp">${LAYERS.map((k) => `<i class="${k}"><b></b></i>`).join('')}</span>` +
+          `<span class="hp"></span>` +
           `<span class="lk mine"><b></b></span><span class="lk theirs"><b></b></span>`;
         el.appendChild(c); chips.set(f.id, c);
       }
@@ -44,7 +43,7 @@ export function createFoes(world: PlayerWorld, selected: () => string | null, se
       c.classList.toggle('sel', f.id === sel);
       setText(c.querySelector('.mark')!, t.lockedMe ? '✖' : t.lockingMe ? '⚠' : '');
       setText(c.querySelector('.d')!, fmtDist(surfaceDistance(player, f)));
-      LAYERS.forEach((k) => setWidth(c.querySelector<HTMLElement>(`.${k} b`)!, f[k] / f.hull[k]));
+      updateHp(c.querySelector<HTMLElement>('.hp')!, f);
       if (t.lockingMe) setWidth(c.querySelector<HTMLElement>('.theirs b')!, lockProgress(f));
       if (t.myLocking) setWidth(c.querySelector<HTMLElement>('.mine b')!, lockProgress(player));
     }
