@@ -5,7 +5,6 @@ import type { Entity, Order, PlayerWorld } from '../sim/types';
 import { canWarpTo, surfaceDistance } from '../sim/world';
 import { $, fmtDist } from './format';
 import { TYPE_NAME, glyph, isHostile } from './glyphs';
-import { updateLayers } from './layers';
 
 export interface Overview {
   selected(): string | null;
@@ -50,15 +49,12 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
     $('sheet').classList.toggle('has-sel', !!e);
     if (!e) {
       $('selName').innerHTML = 'Ничего не выбрано'; $('selHint').textContent = 'Выберите объект в обзоре или на экране.';
-      $('chips').innerHTML = ''; $('selHp').hidden = true; actionsKey = ''; return;
+      $('chips').innerHTML = ''; actionsKey = ''; return;
     }
     const d = dist(e);
     const warpable = canWarpTo(world, player, e);
     const near = d <= GRID_RANGE;
     $('selName').innerHTML = `<span>${e.name}</span><small>${fmtDist(d)}</small>`;
-    const hp = $('selHp');
-    hp.hidden = e.type !== 'ship';
-    if (e.type === 'ship') updateLayers(hp, e);
     const hostile = isHostile(e), attacking = player.attack === e.id;
     const key = e.id + '|' + warpable + '|' + near + '|' + !!player.warp + '|' + attacking;
     if (key === actionsKey) return;
@@ -68,8 +64,8 @@ export function createOverview(world: PlayerWorld, toast: (msg: string) => void)
     if (player.warp) {
       $('selHint').textContent = TYPE_NAME[e.type] + '. В варпе приказы недоступны.';
     } else {
-      const who = e.type === 'ship' && e.ai ? 'Враг: ' + e.ai.def.role : hostile ? 'Враг' : TYPE_NAME[e.type];
-      $('selHint').textContent = who + (warpable ? '. Можно варпнуть.' : near ? '. В пределах манёвра.' : '. Слишком далеко для манёвра.');
+      // коротко: кто это; что можно сделать — видно по кнопкам. Прочность врага — в полоске врагов
+      $('selHint').textContent = e.type === 'ship' && e.ai ? e.ai.def.role : hostile ? 'враг' : TYPE_NAME[e.type];
       if (hostile) chips.push(attacking ? ['ceasefire', 0, 'Прекратить огонь', 'attack'] : ['attack', 0, 'Атаковать', 'attack']);
       if (warpable) chips.push(['warp', 0, 'Варп на 0 км', 'primary'], ['warp', 10e3, 'на 10 км', 'primary'], ['warp', 50e3, 'на 50 км', 'primary']);
       if (near) {

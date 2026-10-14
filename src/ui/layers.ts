@@ -1,16 +1,16 @@
 import type { Ship } from '../sim/types';
 
-const LAYERS = [['shield', 'Щит'], ['armor', 'Броня'], ['structure', 'Корпус']] as const;
+const LAYERS = ['shield', 'armor', 'structure'] as const;
 
-/** Три полоски прочности — щит, броня, корпус. Разметка создаётся один раз, дальше только обновляется. */
-export function updateLayers(el: HTMLElement, s: Ship): void {
-  if (!el.firstChild) {
-    el.innerHTML = LAYERS.map(([k, name]) =>
-      `<div class="lay ${k}"><div class="row"><span>${name}</span><b></b></div><div class="meter"><i></i></div></div>`).join('');
-  }
-  LAYERS.forEach(([k], i) => {
-    const lay = el.children[i] as HTMLElement, v = s[k], max = s.hull[k];
-    lay.querySelector('b')!.textContent = String(Math.ceil(v));
-    (lay.querySelector('i') as HTMLElement).style.width = ((100 * v) / max).toFixed(1) + '%';
+/**
+ * Прочность — три тонкие полоски без подписей: щит (синяя), броня (оранжевая), корпус (красная).
+ * Числа — во всплывающей подсказке и в отладке. Разметка создаётся один раз, дальше только обновляется.
+ */
+export function updateHp(el: HTMLElement, s: Ship): void {
+  if (!el.firstChild) el.innerHTML = LAYERS.map((k) => `<i class="${k}"><b></b></i>`).join('');
+  LAYERS.forEach((k, i) => {
+    (el.children[i]!.firstElementChild as HTMLElement).style.width = ((100 * Math.max(0, s[k])) / s.hull[k]).toFixed(1) + '%';
   });
+  const title = `Щит ${Math.ceil(s.shield)}, броня ${Math.ceil(s.armor)}, корпус ${Math.ceil(s.structure)}`;
+  if (el.title !== title) el.title = title;
 }

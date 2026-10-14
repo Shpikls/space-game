@@ -1,9 +1,10 @@
 import { attackStatus, currentHitChance, weaponRange } from '../sim/combat';
 import { DEG } from '../sim/constants';
-import { isLocked, lockLeft, lockProgress } from '../sim/lock';
+import { lockLeft } from '../sim/lock';
 import type { PlayerWorld, SimEvent } from '../sim/types';
 import { $, fmtDist, fmtSec, fmtSpeed } from './format';
-import { updateLayers } from './layers';
+import { shortName } from './glyphs';
+import { updateHp } from './layers';
 
 export interface Hud {
   /** карточка состояния вверху: корпус, скорость, приказ, выравнивание, варп */
@@ -42,34 +43,21 @@ export function createHud(world: PlayerWorld, onRespawn: () => void): Hud {
     $('state').textContent = stateText();
     statusEl.classList.toggle('aligning', !!s.align && s.order.type === 'warp' && !s.warp);
     statusEl.classList.toggle('warping', !!s.warp);
-    updateLayers($('myLayers'), s);
-    // кто целится в нас: захват идёт — жёлтое предупреждение с полоской, захватил — «Вас атакует»
-    const aimers = world.ships.filter((e) => e.attack === s.id && !e.dead);
-    const locking = aimers.filter((e) => !isLocked(e) && lockProgress(e) > 0), locked = aimers.filter(isLocked);
-    statusEl.classList.toggle('warned', locking.length > 0);
-    if (locking.length) {
-      $('warnLine').textContent = '⚠ Вас захватывает: ' + locking.map((e) => e.name).join(', ');
-      $('theirLockBar').style.width = (100 * Math.max(...locking.map(lockProgress))).toFixed(1) + '%';
-    }
-    statusEl.classList.toggle('threatened', locked.length > 0);
-    if (locked.length) $('threatLine').textContent = 'Вас атакует: ' + locked.map((e) => e.name).join(', ');
+    // карточка — только про свой корабль: что делает, по кому стреляет, прочность.
+    // Кто целится в тебя — в полоске врагов под карточкой
+    updateHp($('myHp'), s);
     const target = s.attack ? world.byId[s.attack] : undefined;
-    const st = target ? attackStatus(world, s) : 'none';
     statusEl.classList.toggle('attacking', !!target);
-    statusEl.classList.toggle('locking', st === 'locking');
     if (target?.type === 'ship') {
-      const chance = currentHitChance(world, s);
+      const st = attackStatus(world, s), n = shortName(target.name), chance = currentHitChance(world, s);
       // шанс показываем всегда, когда достаём: по нему видно, что мешает попадать
-      const odds = chance === null ? '' : ', попадание ' + Math.round(chance * 100) + '%' + (chance < 0.5 ? ' — цель быстро смещается' : '');
-      if (st === 'locking') {
-        $('attackLine').textContent = 'Захват: ' + target.name + ' — ' + lockLeft(s, target).toFixed(1).replace('.', ',') + ' с';
-        $('myLockBar').style.width = (100 * lockProgress(s)).toFixed(1) + '%';
-      } else {
-        // чтобы стрелять, нужно быть ближе и дальности турели, и дальности захвата
-        const need = Math.min(weaponRange(s), s.hull.lockRange);
-        $('attackLine').textContent = 'Атака: ' + target.name +
-          (st === 'firing' ? ' — огонь' + odds : st === 'aiming' ? ' — наводится' + odds : ' — далеко, нужно ближе ' + fmtDist(need));
-      }
+      const odds = chance === null ? '' : ' — ' + Math.round(chance * 100) + '%' + (chance < 0.5 ? ', цель смещается' : '');
+      // чтобы стрелять, нужно быть ближе и дальности турели, и дальности захвата
+      const need = Math.min(weaponRange(s), s.hull.lockRange);
+      $('attackLine').textContent =
+        st === 'locking' ? 'Захват: ' + n + ' — ' + lockLeft(s, target).toFixed(1).replace('.', ',') + ' с'
+        : st === 'far' ? n + ' далеко — нужно ближе ' + fmtDist(need)
+        : (st === 'firing' ? 'Огонь: ' : 'Наводка: ') + n + odds;
     }
     if (s.align && !s.warp) {
       const deg = s.align.angle / DEG;

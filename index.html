@@ -19,11 +19,7 @@
     <div class="row"><span id="hullName"></span><span id="speed"></span></div>
     <div id="state">Стоп</div>
     <div id="attackLine"></div>
-    <div class="meter" id="myLockMeter"><i id="myLockBar"></i></div>
-    <div id="warnLine"></div>
-    <div class="meter" id="theirLockMeter"><i id="theirLockBar"></i></div>
-    <div id="threatLine"></div>
-    <div class="layers" id="myLayers"></div>
+    <div class="hp" id="myHp"></div>
     <div id="bigSpeed"></div>
     <div id="alignBox">
       <div class="row"><span>Курс</span><span id="alignAngle"></span></div>
@@ -37,7 +33,7 @@
     </div>
     <button id="stopBtn" class="btn" data-stop>Стоп</button>
   </div>
-  <!-- враги рядом: что делают, сколько до них, прочность; тап — выбрать -->
+  <!-- карточка выше — про тебя, полоска — про врагов рядом: что делают, сколько до них, прочность; тап — выбрать -->
   <div id="foes" hidden></div>
   </div>
   <button id="gear" class="btn" aria-label="Отладка">⚙</button>
@@ -50,7 +46,6 @@
   <div id="actions">
     <div id="selName">Ничего не выбрано</div>
     <div id="selHint">Выберите объект в обзоре или на экране.</div>
-    <div id="selHp" class="layers" hidden></div>
     <div class="chips" id="chips"></div>
   </div>
   <div class="tabs">
